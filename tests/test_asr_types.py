@@ -187,3 +187,71 @@ class TestTranscriptionResult:
 
         full_text = result.get_full_text()
         assert full_text == "大家好，今天讨论项目"
+
+    def test_transcription_result_enhanced_path_optional(self, tmp_path):
+        """测试 enhanced_transcript_path 是可选字段"""
+        audio_file = tmp_path / "test.wav"
+        audio_file.write_bytes(b"data")
+
+        output_file = tmp_path / "transcript.json"
+        output_file.write_bytes(b'{}')
+
+        utterances = [Utterance(start=0.0, end=2.5, text="test")]
+
+        result = TranscriptionResult(
+            utterances=utterances,
+            audio_path=str(audio_file),
+            duration=10.0,
+            output_path=str(output_file),
+            asr_provider="whisper",
+            timestamp="2024-01-01"
+        )
+
+        # 默认情况下 enhanced_transcript_path 为 None
+        assert result.enhanced_transcript_path is None
+
+    def test_transcription_result_to_dict_includes_enhanced(self, tmp_path):
+        """测试 to_dict 包含 enhanced_transcript_path（如果存在）"""
+        audio_file = tmp_path / "test.wav"
+        audio_file.write_bytes(b"data")
+
+        output_file = tmp_path / "transcript.json"
+        output_file.write_bytes(b'{}')
+
+        utterances = [Utterance(start=0.0, end=2.5, text="test")]
+
+        result = TranscriptionResult(
+            utterances=utterances,
+            audio_path=str(audio_file),
+            duration=10.0,
+            output_path=str(output_file),
+            asr_provider="whisper",
+            timestamp="2024-01-01",
+            enhanced_transcript_path="/path/to/enhanced.json"
+        )
+
+        data = result.to_dict()
+        assert "enhanced_transcript_path" in data
+        assert data["enhanced_transcript_path"] == "/path/to/enhanced.json"
+
+    def test_transcription_result_to_dict_excludes_enhanced_when_none(self, tmp_path):
+        """测试 enhanced_transcript_path 为 None 时不出现在字典中"""
+        audio_file = tmp_path / "test.wav"
+        audio_file.write_bytes(b"data")
+
+        output_file = tmp_path / "transcript.json"
+        output_file.write_bytes(b'{}')
+
+        utterances = [Utterance(start=0.0, end=2.5, text="test")]
+
+        result = TranscriptionResult(
+            utterances=utterances,
+            audio_path=str(audio_file),
+            duration=10.0,
+            output_path=str(output_file),
+            asr_provider="whisper",
+            timestamp="2024-01-01"
+        )
+
+        data = result.to_dict()
+        assert "enhanced_transcript_path" not in data

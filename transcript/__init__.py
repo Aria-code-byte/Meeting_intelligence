@@ -28,6 +28,7 @@ from transcript.refiner import (
     refine_transcript_file,
     refine_with_rules,
 )
+from transcript.enhanced import EnhancedTranscriptConfig
 
 __all__ = [
     "TranscriptDocument",
@@ -50,4 +51,5 @@ __all__ = [
     "refine_transcript",
     "refine_transcript_file",
     "refine_with_rules",
+    "EnhancedTranscriptConfig",
 ]

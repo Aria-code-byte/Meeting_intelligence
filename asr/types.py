@@ -57,7 +57,8 @@ class TranscriptionResult:
         output_path: 结果 JSON 文件路径
         asr_provider: ASR 提供商名称
         timestamp: 识别时间戳
-        transcript_path: 原始会议文档路径（可选）
+        transcript_path: 原始会议文档路径（可选，始终指向 raw ASR transcript）
+        enhanced_transcript_path: 增强版文档路径（可选，预留用于 future PRs）
     """
     utterances: List[Utterance]
     audio_path: str
@@ -66,6 +67,9 @@ class TranscriptionResult:
     asr_provider: str
     timestamp: str
     transcript_path: Optional[str] = None
+    # transcript_path 始终指向原始 ASR 转录文件
+    # enhanced_transcript_path 预留给未来的增强版输出
+    enhanced_transcript_path: Optional[str] = None
 
     def __post_init__(self):
         """验证结果"""
@@ -110,6 +114,8 @@ class TranscriptionResult:
         }
         if self.transcript_path is not None:
             result["transcript_path"] = self.transcript_path
+        if self.enhanced_transcript_path is not None:
+            result["enhanced_transcript_path"] = self.enhanced_transcript_path
         return result
 
     def get_full_text(self) -> str:

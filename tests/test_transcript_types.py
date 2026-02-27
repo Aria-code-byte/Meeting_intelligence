@@ -324,3 +324,82 @@ class TestTranscriptDocument:
 
         assert document.utterance_count == 0
         assert document.get_full_text() == ""
+
+    def test_transcript_document_with_source_path(self, tmp_path):
+        """测试 TranscriptDocument 保存 source_transcript_path"""
+        audio_file = tmp_path / "test.wav"
+        audio_file.write_bytes(b"data")
+
+        utterances = [
+            {"start": 0.0, "end": 2.5, "text": "test"}
+        ]
+
+        document = TranscriptDocument(
+            utterances=utterances,
+            audio_path=str(audio_file),
+            duration=10.0,
+            asr_provider="whisper",
+            source_transcript_path="/path/to/raw/asr.json"
+        )
+
+        assert document.source_transcript_path == "/path/to/raw/asr.json"
+
+    def test_transcript_document_source_path_optional(self, tmp_path):
+        """测试 source_transcript_path 是可选的"""
+        audio_file = tmp_path / "test.wav"
+        audio_file.write_bytes(b"data")
+
+        utterances = [
+            {"start": 0.0, "end": 2.5, "text": "test"}
+        ]
+
+        document = TranscriptDocument(
+            utterances=utterances,
+            audio_path=str(audio_file),
+            duration=10.0,
+            asr_provider="whisper"
+        )
+
+        assert document.source_transcript_path is None
+
+    def test_to_dict_includes_source_path(self, tmp_path):
+        """测试 to_dict 包含 source_transcript_path（如果存在）"""
+        audio_file = tmp_path / "test.wav"
+        audio_file.write_bytes(b"data")
+
+        utterances = [
+            {"start": 0.0, "end": 2.5, "text": "test"}
+        ]
+
+        document = TranscriptDocument(
+            utterances=utterances,
+            audio_path=str(audio_file),
+            duration=10.0,
+            asr_provider="whisper",
+            source_transcript_path="/path/to/raw.json"
+        )
+
+        result = document.to_dict()
+        assert "source_transcript_path" in result["metadata"]
+        assert result["metadata"]["source_transcript_path"] == "/path/to/raw.json"
+
+    def test_from_dict_restores_source_path(self, tmp_path):
+        """测试 from_dict 恢复 source_transcript_path"""
+        audio_file = tmp_path / "test.wav"
+        audio_file.write_bytes(b"data")
+
+        data = {
+            "metadata": {
+                "audio_path": str(audio_file),
+                "duration": 10.0,
+                "asr_provider": "whisper",
+                "created_at": "2024-01-01T00:00:00",
+                "source_transcript_path": "/path/to/raw.json"
+            },
+            "utterances": [
+                {"start": 0.0, "end": 2.5, "text": "test"}
+            ]
+        }
+
+        document = TranscriptDocument.from_dict(data)
+        assert document.source_transcript_path == "/path/to/raw.json"

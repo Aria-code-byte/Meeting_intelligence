@@ -25,7 +25,8 @@ class TranscriptDocument:
         duration: float,
         asr_provider: str,
         created_at: Optional[str] = None,
-        document_path: Optional[str] = None
+        document_path: Optional[str] = None,
+        source_transcript_path: Optional[str] = None
     ):
         """
         初始化原始会议文档
@@ -37,6 +38,7 @@ class TranscriptDocument:
             asr_provider: ASR 服务提供商（如 "whisper-local-base"）
             created_at: 文档创建时间（ISO 8601 格式，可选）
             document_path: 文档保存路径（可选）
+            source_transcript_path: 源 ASR 转录文件路径（可选，用于追溯原始工件）
 
         Raises:
             ValueError: 如果必填字段缺失或无效
@@ -58,6 +60,7 @@ class TranscriptDocument:
         self.asr_provider = asr_provider
         self.created_at = created_at or datetime.now().isoformat()
         self.document_path = document_path
+        self.source_transcript_path = source_transcript_path
 
         # 元数据
         self.utterance_count = len(self.utterances)
@@ -127,14 +130,17 @@ class TranscriptDocument:
         Returns:
             包含完整文档数据的字典
         """
+        metadata = {
+            "audio_path": self.audio_path,
+            "duration": self.duration,
+            "asr_provider": self.asr_provider,
+            "created_at": self.created_at,
+            "utterance_count": self.utterance_count
+        }
+        if self.source_transcript_path is not None:
+            metadata["source_transcript_path"] = self.source_transcript_path
         return {
-            "metadata": {
-                "audio_path": self.audio_path,
-                "duration": self.duration,
-                "asr_provider": self.asr_provider,
-                "created_at": self.created_at,
-                "utterance_count": self.utterance_count
-            },
+            "metadata": metadata,
             "utterances": self.utterances
         }
 
@@ -189,7 +195,8 @@ class TranscriptDocument:
             audio_path=meta["audio_path"],
             duration=meta["duration"],
             asr_provider=meta["asr_provider"],
-            created_at=meta.get("created_at")
+            created_at=meta.get("created_at"),
+            source_transcript_path=meta.get("source_transcript_path")
         )
 
     def get_full_text(self) -> str:

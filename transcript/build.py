@@ -12,7 +12,9 @@ from transcript.types import TranscriptDocument
 def build_transcript(
     asr_result: TranscriptionResult,
     save: bool = True,
-    output_path: Optional[str] = None
+    output_path: Optional[str] = None,
+    *,
+    enable_enhanced: bool = False
 ) -> TranscriptDocument:
     """
     从 ASR 转写结果构建原始会议文档
@@ -21,6 +23,7 @@ def build_transcript(
         asr_result: ASR 转写结果
         save: 是否保存到磁盘（默认 True）
         output_path: 输出文件路径（可选，默认自动生成）
+        enable_enhanced: 是否启用增强版处理（默认 False，PR1 预留）
 
     Returns:
         TranscriptDocument 实例
@@ -44,17 +47,21 @@ def build_transcript(
             "text": utt.text
         })
 
-    # 创建文档
+    # 创建文档，记录源 ASR 工件路径以保持可追溯性
     document = TranscriptDocument(
         utterances=utterances,
         audio_path=asr_result.audio_path,
         duration=asr_result.duration,
-        asr_provider=asr_result.asr_provider
+        asr_provider=asr_result.asr_provider,
+        source_transcript_path=asr_result.transcript_path
     )
 
     # 保存到磁盘
     if save:
         document.save(output_path)
+
+    # PR1: enable_enhanced 参数已预留但暂不实现
+    # Future PRs (2-5) 将在此处添加增强处理逻辑
 
     return document
 

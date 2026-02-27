@@ -78,6 +78,85 @@ class TestBuildTranscript:
         with pytest.raises(ValueError, match="asr_result 必须是 TranscriptionResult 类型"):
             build_transcript("not a result", save=False)
 
+    def test_build_transcript_preserves_raw_source(self, tmp_path):
+        """测试构建 transcript 时追溯原始 ASR 路径"""
+        audio_file = tmp_path / "test.wav"
+        audio_file.write_bytes(b"data")
+
+        asr_file = tmp_path / "asr_result.json"
+        asr_file.write_bytes(b"{}")
+
+        # 创建原始 transcript 文件
+        raw_transcript_file = tmp_path / "raw_transcript.json"
+        raw_transcript_file.write_bytes(b'{"utterances": [], "audio_path": "test.wav"}')
+
+        asr_result = TranscriptionResult(
+            utterances=[
+                Utterance(start=0.0, end=2.5, text="大家好")
+            ],
+            audio_path=str(audio_file),
+            duration=10.0,
+            output_path=str(asr_file),
+            asr_provider="whisper",
+            timestamp="2024-01-01T00:00:00",
+            transcript_path=str(raw_transcript_file)
+        )
+
+        document = build_transcript(asr_result, save=False)
+
+        # 验证 source_transcript_path 正确记录
+        assert document.source_transcript_path == str(raw_transcript_file)
+
+    def test_build_transcript_disabled_enhanced_by_default(self, tmp_path):
+        """测试 enhanced 默认不启用"""
+        audio_file = tmp_path / "test.wav"
+        audio_file.write_bytes(b"data")
+
+        asr_file = tmp_path / "asr_result.json"
+        asr_file.write_bytes(b"{}")
+
+        asr_result = TranscriptionResult(
+            utterances=[Utterance(start=0.0, end=2.5, text="test")],
+            audio_path=str(audio_file),
+            duration=10.0,
+            output_path=str(asr_file),
+            asr_provider="whisper",
+            timestamp="2024-01-01T00:00:00"
+        )
+
+        document = build_transcript(asr_result, save=False)
+
+        # PR1: enhanced 不应自动生成
+        assert asr_result.enhanced_transcript_path is None
+        # 默认行为应与原版一致
+        assert document.utterance_count == 1
+        assert document.utterances[0]["text"] == "test"
+
+    def test_build_transcript_with_enhanced_flag_true(self, tmp_path):
+        """测试 enable_enhanced=True 时行为（PR1 仅预留接口）"""
+        audio_file = tmp_path / "test.wav"
+        audio_file.write_bytes(b"data")
+
+        asr_file = tmp_path / "asr_result.json"
+        asr_file.write_bytes(b"{}")
+
+        asr_result = TranscriptionResult(
+            utterances=[Utterance(start=0.0, end=2.5, text="test")],
+            audio_path=str(audio_file),
+            duration=10.0,
+            output_path=str(asr_file),
+            asr_provider="whisper",
+            timestamp="2024-01-01T00:00:00"
+        )
+
+        # PR1: enable_enhanced=True 暂不改变行为
+        document = build_transcript(asr_result, save=False, enable_enhanced=True)
+
+        # 验证原内容未被修改
+        assert document.utterance_count == 1
+        assert document.utterances[0]["text"] == "test"
+        # Future PRs 将在此添加 enhanced 处理逻辑
+
 
 class TestFormatTimestamp:
     """format_timestamp 函数测试"""
