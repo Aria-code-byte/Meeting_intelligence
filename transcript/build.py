@@ -14,7 +14,8 @@ def build_transcript(
     save: bool = True,
     output_path: Optional[str] = None,
     *,
-    enable_enhanced: bool = False
+    enable_enhanced: bool = False,
+    enhanced_config: Optional = None
 ) -> TranscriptDocument:
     """
     从 ASR 转写结果构建原始会议文档
@@ -23,7 +24,8 @@ def build_transcript(
         asr_result: ASR 转写结果
         save: 是否保存到磁盘（默认 True）
         output_path: 输出文件路径（可选，默认自动生成）
-        enable_enhanced: 是否启用增强版处理（默认 False，PR1 预留）
+        enable_enhanced: 是否启用增强版处理（默认 False）
+        enhanced_config: 增强版配置（可选，默认使用 60s 窗口 + 10s overlap）
 
     Returns:
         TranscriptDocument 实例
@@ -60,8 +62,43 @@ def build_transcript(
     if save:
         document.save(output_path)
 
-    # PR1: enable_enhanced 参数已预留但暂不实现
-    # Future PRs (2-5) 将在此处添加增强处理逻辑
+    # PR2: enhanced 处理（如果启用）
+    if enable_enhanced:
+        # 导入 enhanced_builder（避免循环依赖）
+        from transcript.enhanced_builder import build_enhanced_transcript, EnhancedTranscriptConfig
+
+        # 使用提供的配置或默认配置
+        if enhanced_config is None:
+            enhanced_config = EnhancedTranscriptConfig(
+                enabled=True,
+                chunk_window_seconds=60.0,
+                chunk_overlap_seconds=10.0
+            )
+
+        # 构建 enhanced transcript
+        utterances_list = [
+            {"start": utt.start, "end": utt.end, "text": utt.text}
+            for utt in asr_result.utterances
+        ]
+
+        enhanced = build_enhanced_transcript(
+            utterances=utterances_list,
+            config=enhanced_config,
+            source_transcript_path=asr_result.transcript_path
+        )
+
+        # 保存 enhanced 文档
+        enhanced_path = None
+        if document.document_path:
+            doc_path = Path(document.document_path)
+            enhanced_filename = doc_path.stem + "_enhanced" + doc_path.suffix
+            enhanced_path = str(doc_path.parent / enhanced_filename)
+            enhanced_path = enhanced.save(enhanced_path)
+
+        # 更新 asr_result 的 enhanced_transcript_path（如果可以）
+        # 注意：TranscriptionResult 是不可变数据类，这里仅记录
+        if hasattr(asr_result, 'enhanced_transcript_path'):
+            object.__setattr__(asr_result, 'enhanced_transcript_path', enhanced_path)
 
     return document
 

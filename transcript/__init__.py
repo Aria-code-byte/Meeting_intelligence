@@ -29,6 +29,16 @@ from transcript.refiner import (
     refine_with_rules,
 )
 from transcript.enhanced import EnhancedTranscriptConfig
+from transcript.enhanced_builder import (
+    EnhancedTranscript,
+    EnhancedTranscriptConfig as EnhancedBuilderConfig,
+    Sentence,
+    Chunk,
+    TimeWindow,
+    build_enhanced_transcript,
+    chunk_transcript_by_time,
+    create_sentences_from_utterances,
+)
 
 __all__ = [
     "TranscriptDocument",
@@ -52,4 +62,12 @@ __all__ = [
     "refine_transcript_file",
     "refine_with_rules",
     "EnhancedTranscriptConfig",
+    "EnhancedTranscript",
+    "EnhancedBuilderConfig",
+    "Sentence",
+    "Chunk",
+    "TimeWindow",
+    "build_enhanced_transcript",
+    "chunk_transcript_by_time",
+    "create_sentences_from_utterances",
 ]
