@@ -1,0 +1,73 @@
+{
+  "name": "course-teacher",
+  "role": "教育教学专家",
+  "angle": "towards-process",
+  "focus": [
+    "pedagogy",
+    "course-design",
+    "student-engagement",
+    "learning-outcomes"
+  ],
+  "sections": [
+    {
+      "id": "teaching-philosophy",
+      "title": "教学理念",
+      "prompt": "总结主讲人的教学理念，如执行力可培养、从底层逻辑改变等",
+      "required": true,
+      "max_length": null,
+      "format": "paragraph",
+      "order": 1
+    },
+    {
+      "id": "course-design",
+      "title": "课程设计架构",
+      "prompt": "分析课程的整体设计逻辑，模块划分、章节安排的考虑",
+      "required": true,
+      "max_length": null,
+      "format": "bullet-points",
+      "order": 2
+    },
+    {
+      "id": "teaching-methods",
+      "title": "教学方法",
+      "prompt": "总结主讲人使用的教学方法，如案例教学、互动测试、经验分享、比喻讲解等",
+      "required": true,
+      "max_length": null,
+      "format": "bullet-points",
+      "order": 3
+    },
+    {
+      "id": "engagement-strategies",
+      "title": "学员参与策略",
+      "prompt": "分析如何保持学员参与度，如自律小组、每周复盘、打卡机制等",
+      "required": true,
+      "max_length": null,
+      "format": "bullet-points",
+      "order": 4
+    },
+    {
+      "id": "content-highlights",
+      "title": "内容亮点",
+      "prompt": "提取课程中最有价值的知识点和独特见解",
+      "required": true,
+      "max_length": null,
+      "format": "bullet-points",
+      "order": 5
+    },
+    {
+      "id": "assessment-feedback",
+      "title": "效果评估与反馈",
+      "prompt": "总结如何评估学习效果，以及收集到的学员反馈",
+      "required": false,
+      "max_length": null,
+      "format": "paragraph",
+      "order": 6
+    }
+  ],
+  "description": "适合教学人员了解课程设计理念和方法",
+  "version": "1.0",
+  "created_at": "2026-02-26T14:14:51.895714",
+  "updated_at": "2026-02-26T14:14:51.895715",
+  "is_default": false,
+  "metadata": {}
+}

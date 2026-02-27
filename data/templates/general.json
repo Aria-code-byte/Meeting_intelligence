@@ -1,0 +1,45 @@
+{
+  "name": "general",
+  "role": "General",
+  "angle": "balanced",
+  "focus": [
+    "summary",
+    "key-points",
+    "action-items"
+  ],
+  "sections": [
+    {
+      "id": "summary",
+      "title": "会议总结",
+      "prompt": "请简要总结这次会议的主要内容",
+      "required": true,
+      "max_length": null,
+      "format": "paragraph",
+      "order": 1
+    },
+    {
+      "id": "key-points",
+      "title": "关键要点",
+      "prompt": "列出会议讨论的关键要点",
+      "required": true,
+      "max_length": null,
+      "format": "bullet-points",
+      "order": 2
+    },
+    {
+      "id": "action-items",
+      "title": "行动项",
+      "prompt": "列出需要跟进的行动项",
+      "required": true,
+      "max_length": null,
+      "format": "bullet-points",
+      "order": 3
+    }
+  ],
+  "description": "通用模板，适合大多数场景",
+  "version": "1.0",
+  "created_at": "2026-01-22T16:58:00.790038",
+  "updated_at": "2026-01-22T16:58:00.790039",
+  "is_default": true,
+  "metadata": {}
+}

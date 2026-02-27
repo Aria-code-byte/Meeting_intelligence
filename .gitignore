@@ -1,0 +1,77 @@
+############################
+# Python / Build / Caches
+############################
+__pycache__/
+*.py[cod]
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.tox/
+.cache/
+
+build/
+dist/
+*.egg-info/
+
+############################
+# Virtual env
+############################
+.venv/
+venv/
+ENV/
+
+############################
+# IDE / OS
+############################
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+
+############################
+# Secrets
+############################
+.env
+.env.*
+*.key
+*.pem
+
+############################
+# Logs
+############################
+*.log
+
+############################
+# Project generated data (per your structure)
+# Keep config/templates; ignore run outputs
+############################
+# Audio/video inputs & derived media (usually large)
+data/raw_audio/
+*.wav
+*.mp3
+*.m4a
+*.flac
+*.aac
+*.ogg
+*.mp4
+*.mkv
+*.mov
+
+# Generated artifacts
+data/transcripts/
+data/summaries/
+data/formatted/
+data/output/
+
+# If you also have temp folders
+data/tmp/
+tmp/
+
+############################
+# Jupyter (if you use it)
+############################
+.ipynb_checkpoints/

@@ -1,0 +1,14 @@
+{
+  "video_path": "/mnt/d/meeting_intelligence/data/raw_audio/meeting_01.mp4",
+  "output_dir": "outputs/meeting_01",
+  "start_time": "2026-02-26T12:47:30.826921",
+  "audio_path": "outputs/meeting_01/audio.wav",
+  "transcript": {
+    "utterance_count": 2939,
+    "duration": 5772.128
+  },
+  "formatted_path": "outputs/meeting_01/transcript_clean.md",
+  "summary_files": [],
+  "status": "success",
+  "end_time": "2026-02-26T12:55:04.926581"
+}

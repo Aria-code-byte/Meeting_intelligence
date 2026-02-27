@@ -1,0 +1,15 @@
+Error: 未设置 API Key。请设置以下环境变量之一:
+  - ZHIPU_API_KEY (推荐)
+  - OPENAI_API_KEY
+  - ANTHROPIC_API_KEY
+
+Traceback (most recent call last):
+  File "/mnt/d/meeting_intelligence/test_full_pipeline.py", line 451, in run_full_pipeline
+    summary_files = step4_generate_summaries(transcript_path, output_dir, templates)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/d/meeting_intelligence/test_full_pipeline.py", line 275, in step4_generate_summaries
+    raise RuntimeError(
+RuntimeError: 未设置 API Key。请设置以下环境变量之一:
+  - ZHIPU_API_KEY (推荐)
+  - OPENAI_API_KEY
+  - ANTHROPIC_API_KEY

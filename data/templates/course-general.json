@@ -1,0 +1,64 @@
+{
+  "name": "course-general",
+  "role": "课程内容总结专家",
+  "angle": "balanced",
+  "focus": [
+    "course-content",
+    "teaching-method",
+    "key-concepts",
+    "student-feedback"
+  ],
+  "sections": [
+    {
+      "id": "overview",
+      "title": "课程概述",
+      "prompt": "简要介绍这是什么课程，主讲人是谁，课程的目标是什么",
+      "required": true,
+      "max_length": null,
+      "format": "paragraph",
+      "order": 1
+    },
+    {
+      "id": "core-concepts",
+      "title": "核心观点",
+      "prompt": "总结课程传达的核心观点和理念，如执行力的定义、目标设定的重要性等",
+      "required": true,
+      "max_length": null,
+      "format": "bullet-points",
+      "order": 2
+    },
+    {
+      "id": "course-structure",
+      "title": "课程结构",
+      "prompt": "列出课程包含的主要模块和章节",
+      "required": true,
+      "max_length": null,
+      "format": "bullet-points",
+      "order": 3
+    },
+    {
+      "id": "teaching-features",
+      "title": "教学特色",
+      "prompt": "总结课程的独特教学方法，如案例分析、互动环节、小组学习等",
+      "required": true,
+      "max_length": null,
+      "format": "bullet-points",
+      "order": 4
+    },
+    {
+      "id": "student-cases",
+      "title": "学员案例",
+      "prompt": "提取会议中提到的学员成功案例和反馈",
+      "required": false,
+      "max_length": null,
+      "format": "bullet-points",
+      "order": 5
+    }
+  ],
+  "description": "通用模板，提供课程的整体概览",
+  "version": "1.0",
+  "created_at": "2026-02-26T14:14:51.895702",
+  "updated_at": "2026-02-26T14:14:51.895703",
+  "is_default": false,
+  "metadata": {}
+}

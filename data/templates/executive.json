@@ -1,0 +1,74 @@
+{
+  "name": "executive",
+  "role": "Executive",
+  "angle": "towards-decisions",
+  "focus": [
+    "strategy",
+    "resources",
+    "timeline",
+    "decisions",
+    "roi"
+  ],
+  "sections": [
+    {
+      "id": "executive-summary",
+      "title": "执行摘要",
+      "prompt": "用简洁的语言总结会议的核心内容和结论（3-5句话）",
+      "required": true,
+      "max_length": null,
+      "format": "paragraph",
+      "order": 1
+    },
+    {
+      "id": "key-decisions",
+      "title": "关键决策",
+      "prompt": "列出需要高层关注的决策，包括决策影响和后续行动",
+      "required": true,
+      "max_length": null,
+      "format": "bullet-points",
+      "order": 2
+    },
+    {
+      "id": "strategy",
+      "title": "战略影响",
+      "prompt": "分析会议内容对公司/产品战略的影响",
+      "required": true,
+      "max_length": null,
+      "format": "paragraph",
+      "order": 3
+    },
+    {
+      "id": "resources",
+      "title": "资源需求",
+      "prompt": "总结提出的人力、时间或预算需求",
+      "required": true,
+      "max_length": null,
+      "format": "bullet-points",
+      "order": 4
+    },
+    {
+      "id": "timeline",
+      "title": "时间规划",
+      "prompt": "列出关键里程碑和时间节点",
+      "required": true,
+      "max_length": null,
+      "format": "bullet-points",
+      "order": 5
+    },
+    {
+      "id": "roi",
+      "title": "预期收益",
+      "prompt": "说明讨论到的预期收益或 ROI",
+      "required": false,
+      "max_length": null,
+      "format": "paragraph",
+      "order": 6
+    }
+  ],
+  "description": "适合高管的模板，关注战略方向、资源投入和关键决策",
+  "version": "1.0",
+  "created_at": "2026-01-22T16:58:00.790030",
+  "updated_at": "2026-01-22T16:58:00.790031",
+  "is_default": true,
+  "metadata": {}
+}

@@ -1,0 +1,101 @@
+{
+  "name": "course-investor",
+  "role": "商业分析师",
+  "angle": "towards-decisions",
+  "focus": [
+    "market-demand",
+    "business-model",
+    "pricing",
+    "growth-potential",
+    "risks"
+  ],
+  "sections": [
+    {
+      "id": "market-opportunity",
+      "title": "市场机会",
+      "prompt": "分析目标市场规模、需求痛点、市场空白",
+      "required": true,
+      "max_length": null,
+      "format": "bullet-points",
+      "order": 1
+    },
+    {
+      "id": "product-value",
+      "title": "产品价值主张",
+      "prompt": "总结课程的核心差异化价值和竞争优势",
+      "required": true,
+      "max_length": null,
+      "format": "bullet-points",
+      "order": 2
+    },
+    {
+      "id": "business-model",
+      "title": "商业模式",
+      "prompt": "分析课程的盈利模式、定价策略、交付方式",
+      "required": true,
+      "max_length": null,
+      "format": "bullet-points",
+      "order": 3
+    },
+    {
+      "id": "pricing",
+      "title": "定价分析",
+      "prompt": "说明课程价格、对比竞品、价值感知",
+      "required": true,
+      "max_length": null,
+      "format": "paragraph",
+      "order": 4
+    },
+    {
+      "id": "conversion-factors",
+      "title": "转化因素",
+      "prompt": "分析影响用户购买决策的关键因素，如主讲人背书、学员案例、限时优惠等",
+      "required": true,
+      "max_length": null,
+      "format": "bullet-points",
+      "order": 5
+    },
+    {
+      "id": "social-proof",
+      "title": "社会证明",
+      "prompt": "总结提供的学员成功案例、好评反馈等信任要素",
+      "required": true,
+      "max_length": null,
+      "format": "bullet-points",
+      "order": 6
+    },
+    {
+      "id": "growth-potential",
+      "title": "增长潜力",
+      "prompt": "分析产品的可扩展性、复购潜力、新客户获取能力",
+      "required": true,
+      "max_length": null,
+      "format": "bullet-points",
+      "order": 7
+    },
+    {
+      "id": "risks",
+      "title": "风险因素",
+      "prompt": "识别潜在的风险，如市场竞争、学员满意度、口碑维护等",
+      "required": true,
+      "max_length": null,
+      "format": "bullet-points",
+      "order": 8
+    },
+    {
+      "id": "key-metrics",
+      "title": "关键指标",
+      "prompt": "列出需要跟踪的关键业务指标",
+      "required": false,
+      "max_length": null,
+      "format": "bullet-points",
+      "order": 9
+    }
+  ],
+  "description": "适合投资者了解课程的商业价值和市场前景",
+  "version": "1.0",
+  "created_at": "2026-02-26T14:14:51.895721",
+  "updated_at": "2026-02-26T14:14:51.895722",
+  "is_default": false,
+  "metadata": {}
+}

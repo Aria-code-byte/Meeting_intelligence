@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Skill(openspec:proposal)",
+      "Bash(openspec:*)",
+      "Skill(openspec:apply)",
+      "Bash(python -m pytest:*)",
+      "Bash(python3:*)",
+      "Bash(pip3:*)",
+      "Bash(apt:*)",
+      "Bash(ffmpeg:*)",
+      "Bash(pip install:*)",
+      "Bash(source:*)",
+      "Bash(pytest:*)",
+      "Bash(python:*)",
+      "Bash(ls -la /mnt/d/meeting_intelligence/*.txt /mnt/d/meeting_intelligence/*.toml 2>/dev/null || echo \"No config files\")",
+      "Bash(ls -lh /mnt/d/meeting_intelligence/data/raw_audio/meeting_01.*)",
+      "Bash(echo $ZHIPU_API_KEY)",
+      "Bash(cat > /mnt/d/meeting_intelligence/.env << 'EOF'\n# AI Meeting Assistant - Environment Configuration\n# 在这里填写你的 API Key，每次运行会自动加载\n\n# Zhipu AI \\(GLM\\) API Key\n# 获取地址: https://open.bigmodel.cn/usercenter/apikeys\nZHIPU_API_KEY=你的智谱API密钥\n\n# OpenAI API Key \\(可选\\)\n# 获取地址: https://platform.openai.com/api-keys\n# OPENAI_API_KEY=sk-xxx\n\n# Anthropic API Key \\(可选\\)\n# 获取地址: https://console.anthropic.com/\n# ANTHROPIC_API_KEY=sk-ant-xxx\n\n# Default LLM provider: openai, anthropic, or glm\nDEFAULT_LLM_PROVIDER=glm\n\n# Default model\nDEFAULT_LLM_MODEL=glm-4-flash\nEOF\necho \"✓ 已创建 .env 文件\")",
+      "Bash(ls -la /mnt/d/meeting_intelligence/data/raw_audio/*.mp4 2>/dev/null | head -5)",
+      "Bash(chmod +x /mnt/d/meeting_intelligence/run_summaries.sh)",
+      "Bash(bash /mnt/d/meeting_intelligence/run_summaries.sh)",
+      "Bash(find /mnt/d/meeting_intelligence -name \"summary_*.md\" -type f -mmin -30 2>/dev/null | head -10)",
+      "Bash(ps -fp 47526 && kill 47526 2>/dev/null; sleep 1; ps -fp 47526 2>/dev/null || echo \"进程已终止\")",
+      "Bash(curl -s \"https://open.bigmodel.cn/api/paas/v4/rate_limit\" -H \"Authorization: Bearer $ZHIPU_API_KEY\" 2>/dev/null || echo \"无法查询配额状态\")",
+      "Bash(grep -n \"max_tokens\" /mnt/d/meeting_intelligence/summarizer/*.py /mnt/d/meeting_intelligence/summarizer/**/*.py 2>/dev/null)"
+    ]
+  }
+}

@@ -1,0 +1,172 @@
+# AI Meeting Assistant - 专有名词配置
+#
+# 此文件用于配置专有名词的大小写和全称规范。
+# 系统会在 ASR 后处理阶段自动应用这些规则。
+#
+# 用法：
+#   1. 添加小写形式的词作为键
+#   2. 添加正确格式作为值
+#   3. 保存文件后重启程序即可生效
+
+# ============================================
+# 公司/产品名称
+# ============================================
+companies:
+  github: GitHub
+  gitlab: GitLab
+  bitbucket: Bitbucket
+  docker: Docker
+  kubernetes: Kubernetes
+  k8s: K8s
+  aws: Amazon Web Services
+  azure: Microsoft Azure
+  gcp: Google Cloud Platform
+  aliyun: 阿里云
+  tencentcloud: 腾讯云
+  huaweicloud: 华为云
+
+# ============================================
+# 通讯与协作工具
+# ============================================
+communication:
+  slack: Slack
+  teams: Microsoft Teams
+  zoom: Zoom
+  tencent meeting: 腾讯会议
+  dingtalk: 钉钉
+  feishu: 飞书
+  lark: Lark
+  discord: Discord
+
+# ============================================
+# 编程语言
+# ============================================
+languages:
+  python: Python
+  javascript: JavaScript
+  typescript: TypeScript
+  java: Java
+  golang: Go
+  rust: Rust
+  c++: C++
+  c#: C#
+  php: PHP
+  ruby: Ruby
+  swift: Swift
+  kotlin: Kotlin
+  scala: Scala
+  lua: Lua
+  r: R语言
+  matlab: MATLAB
+
+# ============================================
+# 前端框架
+# ============================================
+frontend:
+  react: React
+  vue: Vue
+  angular: Angular
+  svelte: Svelte
+  nextjs: Next.js
+  nuxt: Nuxt.js
+  remix: Remix
+  solid: SolidJS
+  qwik: Qwik
+
+# ============================================
+# 后端框架
+# ============================================
+backend:
+  django: Django
+  flask: Flask
+  fastapi: FastAPI
+  spring: Spring
+  springboot: Spring Boot
+  express: Express
+  nestjs: NestJS
+  laravel: Laravel
+  rails: Ruby on Rails
+  gin: Gin
+  echo: Echo
+
+# ============================================
+# 数据库
+# ============================================
+databases:
+  mysql: MySQL
+  postgresql: PostgreSQL
+  mongodb: MongoDB
+  redis: Redis
+  elasticsearch: Elasticsearch
+  sqlite: SQLite
+  oracle: Oracle
+  sqlserver: SQL Server
+  cassandra: Cassandra
+  dynamodb: DynamoDB
+
+# ============================================
+# DevOps 工具
+# ============================================
+devops:
+  git: Git
+  github: GitHub
+  gitlab: GitLab
+  jenkins: Jenkins
+  gitlab ci: GitLab CI
+  github actions: GitHub Actions
+  travis: Travis CI
+  circleci: CircleCI
+  terraform: Terraform
+  ansible: Ansible
+  puppet: Puppet
+  chef: Chef
+
+# ============================================
+# 容器与编排
+# ============================================
+containers:
+  docker: Docker
+  kubernetes: Kubernetes
+  k8s: K8s
+  helm: Helm
+  istio: Istio
+  envoy: Envoy
+  containerd: containerd
+
+# ============================================
+# 监控与日志
+# ============================================
+monitoring:
+  prometheus: Prometheus
+  grafana: Grafana
+  elk: ELK Stack
+  elasticsearch: Elasticsearch
+  kibana: Kibana
+  logstash: Logstash
+  fluentd: Fluentd
+  datadog: Datadog
+  newrelic: New Relic
+  sentry: Sentry
+
+# ============================================
+# 云服务
+# ============================================
+cloud_services:
+  s3: Amazon S3
+  ec2: Amazon EC2
+  lambda: AWS Lambda
+  cf: Cloudflare
+  vercel: Vercel
+  netlify: Netlify
+  heroku: Heroku
+  firebase: Firebase
+
+# ============================================
+# 项目自定义词汇
+# ============================================
+# 根据你的项目需求添加自定义词汇
+# 例如：
+# project:
+#   项目a: 项目A
+#   项目b: 项目B
+#   代码库x: 代码库X

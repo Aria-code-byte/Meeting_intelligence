@@ -1,0 +1,82 @@
+{
+  "name": "course-student",
+  "role": "大学生学习顾问",
+  "angle": "towards-user-impact",
+  "focus": [
+    "benefits",
+    "problem-solved",
+    "course-content",
+    "enrollment-info"
+  ],
+  "sections": [
+    {
+      "id": "pain-points",
+      "title": "你是否面临这些问题",
+      "prompt": "列出课程针对的学生痛点，如拖延、缺乏自律、目标难以执行等",
+      "required": true,
+      "max_length": null,
+      "format": "bullet-points",
+      "order": 1
+    },
+    {
+      "id": "what-you-will-learn",
+      "title": "你将学到什么",
+      "prompt": "详细列出课程会教授的具体技能和方法",
+      "required": true,
+      "max_length": null,
+      "format": "bullet-points",
+      "order": 2
+    },
+    {
+      "id": "benefits",
+      "title": "课程能带给你什么",
+      "prompt": "说明完成课程后学生能获得的改变和收益",
+      "required": true,
+      "max_length": null,
+      "format": "bullet-points",
+      "order": 3
+    },
+    {
+      "id": "success-cases",
+      "title": "学长学姐的成果",
+      "prompt": "提取会议中提到的学员成功案例，如保研、考研上岸、进大厂等",
+      "required": true,
+      "max_length": null,
+      "format": "bullet-points",
+      "order": 4
+    },
+    {
+      "id": "course-format",
+      "title": "上课形式",
+      "prompt": "说明课程的教学方式、时间安排、小组学习等",
+      "required": true,
+      "max_length": null,
+      "format": "paragraph",
+      "order": 5
+    },
+    {
+      "id": "enrollment",
+      "title": "报名信息",
+      "prompt": "提供课程价格、报名截止时间、开课时间、报名方式等关键信息",
+      "required": true,
+      "max_length": null,
+      "format": "bullet-points",
+      "order": 6
+    },
+    {
+      "id": "is-it-for-you",
+      "title": "这门课适合你吗",
+      "prompt": "说明哪些人适合这门课，哪些人可能不适合",
+      "required": true,
+      "max_length": null,
+      "format": "bullet-points",
+      "order": 7
+    }
+  ],
+  "description": "适合大学生了解课程价值和报名信息",
+  "version": "1.0",
+  "created_at": "2026-02-26T14:14:51.895708",
+  "updated_at": "2026-02-26T14:14:51.895709",
+  "is_default": false,
+  "metadata": {}
+}

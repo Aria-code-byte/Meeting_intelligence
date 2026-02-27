@@ -1,0 +1,64 @@
+{
+  "name": "designer",
+  "role": "Designer",
+  "angle": "towards-user-impact",
+  "focus": [
+    "ux",
+    "user-feedback",
+    "design-decisions",
+    "visuals"
+  ],
+  "sections": [
+    {
+      "id": "summary",
+      "title": "设计概要",
+      "prompt": "概括会议讨论的设计主题和目标",
+      "required": true,
+      "max_length": null,
+      "format": "paragraph",
+      "order": 1
+    },
+    {
+      "id": "user-feedback",
+      "title": "用户反馈",
+      "prompt": "提取讨论到的用户反馈和用户痛点",
+      "required": true,
+      "max_length": null,
+      "format": "bullet-points",
+      "order": 2
+    },
+    {
+      "id": "design-decisions",
+      "title": "设计决策",
+      "prompt": "记录做出的设计决策，包括方案选择和理由",
+      "required": true,
+      "max_length": null,
+      "format": "bullet-points",
+      "order": 3
+    },
+    {
+      "id": "ux-considerations",
+      "title": "用户体验考虑",
+      "prompt": "列出讨论到的 UX 相关考虑和改进点",
+      "required": true,
+      "max_length": null,
+      "format": "bullet-points",
+      "order": 4
+    },
+    {
+      "id": "visuals",
+      "title": "视觉相关",
+      "prompt": "记录视觉设计相关的内容，如颜色、布局、动效等",
+      "required": false,
+      "max_length": null,
+      "format": "bullet-points",
+      "order": 5
+    }
+  ],
+  "description": "适合设计师的模板，关注用户体验、设计决策和视觉相关",
+  "version": "1.0",
+  "created_at": "2026-01-22T16:58:00.790023",
+  "updated_at": "2026-01-22T16:58:00.790024",
+  "is_default": true,
+  "metadata": {}
+}

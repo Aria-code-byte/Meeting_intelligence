@@ -1,0 +1,65 @@
+{
+  "name": "product-manager",
+  "role": "Product Manager",
+  "angle": "towards-conclusions",
+  "focus": [
+    "requirements",
+    "features",
+    "decisions",
+    "action-items",
+    "risks"
+  ],
+  "sections": [
+    {
+      "id": "summary",
+      "title": "会议总结",
+      "prompt": "请用2-3句话总结这次会议的核心内容",
+      "required": true,
+      "max_length": null,
+      "format": "paragraph",
+      "order": 1
+    },
+    {
+      "id": "requirements",
+      "title": "需求要点",
+      "prompt": "提取会议中讨论的产品需求，包括新需求、需求变更和需求澄清",
+      "required": true,
+      "max_length": null,
+      "format": "bullet-points",
+      "order": 2
+    },
+    {
+      "id": "decisions",
+      "title": "关键决策",
+      "prompt": "列出会议中做出的重要决策，包括决策背景和结论",
+      "required": true,
+      "max_length": null,
+      "format": "bullet-points",
+      "order": 3
+    },
+    {
+      "id": "action-items",
+      "title": "行动项",
+      "prompt": "列出需要跟进的行动项，包括负责人和预期完成时间",
+      "required": true,
+      "max_length": null,
+      "format": "bullet-points",
+      "order": 4
+    },
+    {
+      "id": "risks",
+      "title": "风险与问题",
+      "prompt": "识别会议中提到的风险、隐患或待解决问题",
+      "required": false,
+      "max_length": null,
+      "format": "bullet-points",
+      "order": 5
+    }
+  ],
+  "description": "适合产品经理的模板，关注需求、功能、决策和行动项",
+  "version": "1.0",
+  "created_at": "2026-01-22T16:58:00.790008",
+  "updated_at": "2026-01-22T16:58:00.790009",
+  "is_default": true,
+  "metadata": {}
+}

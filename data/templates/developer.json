@@ -1,0 +1,64 @@
+{
+  "name": "developer",
+  "role": "Developer",
+  "angle": "towards-process",
+  "focus": [
+    "technical-decisions",
+    "implementation",
+    "architecture",
+    "bugs"
+  ],
+  "sections": [
+    {
+      "id": "summary",
+      "title": "技术概述",
+      "prompt": "简要概括会议讨论的技术主题",
+      "required": true,
+      "max_length": null,
+      "format": "paragraph",
+      "order": 1
+    },
+    {
+      "id": "technical-discussion",
+      "title": "技术讨论",
+      "prompt": "详细记录技术讨论内容，包括不同观点和技术权衡",
+      "required": true,
+      "max_length": null,
+      "format": "bullet-points",
+      "order": 2
+    },
+    {
+      "id": "implementation",
+      "title": "实现方案",
+      "prompt": "总结确定的技术实现方案和关键步骤",
+      "required": true,
+      "max_length": null,
+      "format": "bullet-points",
+      "order": 3
+    },
+    {
+      "id": "architecture",
+      "title": "架构决策",
+      "prompt": "记录影响系统架构的重要决策",
+      "required": false,
+      "max_length": null,
+      "format": "bullet-points",
+      "order": 4
+    },
+    {
+      "id": "bugs",
+      "title": "Bug 与问题",
+      "prompt": "列出讨论到的 bug 或技术问题",
+      "required": false,
+      "max_length": null,
+      "format": "bullet-points",
+      "order": 5
+    }
+  ],
+  "description": "适合开发者的模板，关注技术细节、实现方案和架构决策",
+  "version": "1.0",
+  "created_at": "2026-01-22T16:58:00.790016",
+  "updated_at": "2026-01-22T16:58:00.790017",
+  "is_default": true,
+  "metadata": {}
+}
