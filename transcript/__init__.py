@@ -39,6 +39,27 @@ from transcript.enhanced_builder import (
     chunk_transcript_by_time,
     create_sentences_from_utterances,
 )
+from transcript.llm import (
+    LLMTranscriptEnhancer,
+    LLMEnhancerConfig,
+    EnhancedTranscriptResult,
+    PromptTemplate,
+    PREDEFINED_TEMPLATES,
+    EnhancementError,
+    LLMProviderError,
+    ParseError,
+)
+
+from transcript.llm import (
+    LLMTranscriptEnhancer,
+    LLMEnhancerConfig,
+    EnhancedTranscriptResult,
+    PromptTemplate,
+    PREDEFINED_TEMPLATES,
+    EnhancementError,
+    LLMProviderError,
+    ParseError,
+)
 
 __all__ = [
     "TranscriptDocument",
@@ -70,4 +91,12 @@ __all__ = [
     "build_enhanced_transcript",
     "chunk_transcript_by_time",
     "create_sentences_from_utterances",
+    "LLMTranscriptEnhancer",
+    "LLMEnhancerConfig",
+    "EnhancedTranscriptResult",
+    "PromptTemplate",
+    "PREDEFINED_TEMPLATES",
+    "EnhancementError",
+    "LLMProviderError",
+    "ParseError",
 ]

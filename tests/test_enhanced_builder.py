@@ -275,8 +275,8 @@ class TestMatchSentencesToChunks:
 class TestEnhancementProcessor:
     """EnhancementProcessor 测试"""
 
-    def test_process_chunk_placeholder(self):
-        """测试 PR2 占位实现（直接返回原文）"""
+    def test_process_chunk_disabled_llm(self):
+        """测试未启用 LLM 时返回原文"""
         sentences = [
             Sentence(0, 5000, 15000, "Original text 1"),
             Sentence(1, 20000, 30000, "Original text 2"),
@@ -287,15 +287,17 @@ class TestEnhancementProcessor:
             sentence_indices=[0, 1]
         )
 
+        # 不传入 config，LLM 未启用
         processor = EnhancementProcessor()
         results = processor.process_chunk(chunk, sentences)
 
         assert len(results) == 2
 
-        # PR2: enhanced_text 应该等于 original_text
+        # 未启用 LLM 时 enhanced_text 应该等于 original_text
         assert results[0].enhanced_text == "Original text 1"
         assert results[0].original_text == "Original text 1"
-        assert results[0].confidence == 1.0
+        # 回退时置信度为 0.0
+        assert results[0].confidence == 0.0
 
     def test_deduplication_by_sentence_index(self):
         """测试按 sentence_index 去重"""

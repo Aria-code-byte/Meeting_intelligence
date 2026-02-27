@@ -181,6 +181,12 @@ class EnhancedTranscriptConfig:
     chunk_overlap_seconds: float = 10.0
     max_drift_ms: int = 30000  # 最大漂移窗口（毫秒），默认 30 秒
 
+    # PR3: LLM 配置
+    llm_provider: str = "mock"  # 默认使用 mock，避免实际调用
+    llm_model: str = "gpt-4o-mini"
+    llm_fallback_on_error: bool = True
+    llm_template_name: str = "general"
+
     def __post_init__(self):
         if self.chunk_window_seconds <= 0:
             raise ValueError("chunk_window_seconds 必须 > 0")
@@ -461,7 +467,21 @@ def match_sentences_to_chunks(
 
 @dataclass
 class EnhancementProcessor:
-    """增强处理器（PR2 占位，PR3-5 实现 LLM 调用）"""
+    """增强处理器（PR3 实现 LLM 调用）"""
+
+    def __init__(self, llm_config=None):
+        """
+        初始化处理器
+
+        Args:
+            llm_config: LLM 增强器配置
+        """
+        self.llm_config = llm_config
+        self.enhancer = None
+
+        if llm_config and llm_config.enabled:
+            from transcript.llm.enhancer import LLMTranscriptEnhancer
+            self.enhancer = LLMTranscriptEnhancer(llm_config)
 
     def process_chunk(
         self,
@@ -472,8 +492,7 @@ class EnhancementProcessor:
         """
         处理单个 chunk，返回增强结果
 
-        PR2: 占位实现，直接返回原文
-        PR3-5: 将实现 LLM 调用
+        PR3 实现：使用 LLM 增强整块文本
 
         Args:
             chunk: 当前 chunk
@@ -483,25 +502,104 @@ class EnhancementProcessor:
         Returns:
             Dict[sentence_index, EnhancedSentence]
         """
-        # PR2 占位：直接返回原文作为"增强"结果
-        results = {}
+        # 未启用 LLM 或无 enhancer，返回原文
+        if not self.enhancer:
+            return self._fallback_result(chunk, sentences)
 
-        matching_sentences = chunk.get_matching_sentences(sentences)
+        # 获取 chunk 中的 sentences
+        matching_sentences = [s for s in sentences if s.sentence_index in chunk.sentence_indices]
 
-        for sent in matching_sentences:
-            results[sent.sentence_index] = EnhancedSentence(
-                sentence_index=sent.sentence_index,
-                start_ms=sent.start_ms,
-                end_ms=sent.end_ms,
-                original_text=sent.text,
-                enhanced_text=sent.text,  # PR2: 使用原文
-                confidence=1.0
+        if not matching_sentences:
+            return {}
+
+        # 构建 chunk 文本
+        chunk_text = self._build_chunk_text(matching_sentences)
+
+        # 调用 LLM 增强
+        try:
+            from transcript.llm.enhancer import EnhancedTranscriptResult
+
+            llm_result: EnhancedTranscriptResult = self.enhancer.enhance(
+                chunk_text,
+                progress_callback
             )
 
-        if progress_callback:
-            progress_callback(f"processed_chunk_{chunk.chunk_id}", len(results))
+            # 映射增强结果回 sentences
+            return self._parse_enhanced_result(
+                llm_result,
+                matching_sentences,
+                progress_callback
+            )
 
-        return results
+        except Exception as e:
+            # 错误时回退到原文
+            if self.llm_config and self.llm_config.fallback_on_error:
+                return self._fallback_result(chunk, sentences)
+            else:
+                raise
+
+    def _build_chunk_text(self, sentences: List[Sentence]) -> str:
+        """构建 chunk 文本"""
+        return " ".join(s.text for s in sentences)
+
+    def _parse_enhanced_result(
+        self,
+        llm_result,
+        original_sentences: List[Sentence],
+        progress_callback: Optional[callable] = None
+    ) -> Dict[int, EnhancedSentence]:
+        """解析增强结果并映射回 sentences"""
+        result = {}
+
+        # 将原始 sentences 转换为 dict 格式
+        orig_dicts = [
+            {
+                "sentence_index": s.sentence_index,
+                "start_ms": s.start_ms,
+                "end_ms": s.end_ms,
+                "text": s.text
+            }
+            for s in original_sentences
+        ]
+
+        # 映射增强文本
+        from transcript.llm.enhancer import map_enhanced_text_to_sentences
+        mapped = map_enhanced_text_to_sentences(llm_result.enhanced_text, orig_dicts)
+
+        # 构建结果
+        confidence = 0.95 if not llm_result.fallback_used else 0.0
+
+        for item in mapped:
+            result[item["sentence_index"]] = EnhancedSentence(
+                sentence_index=item["sentence_index"],
+                start_ms=item["start_ms"],
+                end_ms=item["end_ms"],
+                original_text=item["text"],
+                enhanced_text=item["enhanced_text"],
+                confidence=confidence
+            )
+
+        return result
+
+    def _fallback_result(
+        self,
+        chunk: Chunk,
+        sentences: List[Sentence]
+    ) -> Dict[int, EnhancedSentence]:
+        """回退到原文"""
+        result = {}
+        for sent_idx in chunk.sentence_indices:
+            if sent_idx < len(sentences):
+                sent = sentences[sent_idx]
+                result[sent_idx] = EnhancedSentence(
+                    sentence_index=sent_idx,
+                    start_ms=sent.start_ms,
+                    end_ms=sent.end_ms,
+                    original_text=sent.text,
+                    enhanced_text=sent.text,
+                    confidence=0.0  # 回退时置信度为 0
+                )
+        return result
 
 
 def build_enhanced_transcript(
@@ -570,7 +668,17 @@ def build_enhanced_transcript(
 
     # 7. 处理每个 chunk 并收集增强结果
     #    添加死循环保护（最多处理 10000 个 chunk）
-    processor = EnhancementProcessor()
+    from transcript.llm.enhancer import LLMEnhancerConfig
+
+    llm_config = LLMEnhancerConfig(
+        enabled=config.enabled,
+        provider=config.llm_provider,
+        model=config.llm_model,
+        fallback_on_error=config.llm_fallback_on_error,
+        template_name=config.llm_template_name
+    )
+
+    processor = EnhancementProcessor(llm_config)
     enhanced_results: Dict[int, EnhancedSentence] = {}
 
     MAX_CHUNKS = 10000
@@ -597,6 +705,11 @@ def build_enhanced_transcript(
         key=lambda s: s.sentence_index
     )
 
+    # 计算增强统计
+    total_sentences = len(sorted_sentences)
+    enhanced_sentences = sum(1 for s in sorted_sentences if s.enhanced_text != s.original_text)
+    fallback_sentences = sum(1 for s in sorted_sentences if s.confidence == 0.0)
+
     enhanced_transcript = EnhancedTranscript(
         metadata={
             "source_transcript_path": source_transcript_path,
@@ -605,7 +718,17 @@ def build_enhanced_transcript(
             "chunk_count": len(chunks_with_matches),
             "chunk_window_seconds": config.chunk_window_seconds,
             "chunk_overlap_seconds": config.chunk_overlap_seconds,
-            "created_at": datetime.now().isoformat()
+            "llm_provider": config.llm_provider,
+            "llm_model": config.llm_model,
+            "llm_template": config.llm_template_name,
+            "enhancement_method": "chunk_level",
+            "created_at": datetime.now().isoformat(),
+            "enhancement_stats": {
+                "total_sentences": total_sentences,
+                "enhanced_sentences": enhanced_sentences,
+                "fallback_sentences": fallback_sentences,
+                "success_rate": enhanced_sentences / total_sentences if total_sentences > 0 else 0.0
+            }
         },
         sentences=sorted_sentences,
         chunks=chunks_with_matches
