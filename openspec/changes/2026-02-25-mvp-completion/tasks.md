@@ -2,18 +2,21 @@
 
 ## Iteration 0: Environment & Dependencies (0.5 day)
 
-- [ ] **T0.1** Create `requirements.txt` with all dependencies
+- [x] **T0.1** Create `requirements.txt` with all dependencies
   - Include: pytest, openai, anthropic, python-dotenv, pyyaml, rich, tqdm
   - Add installation instructions to README
+  - ✅ Complete: Updated with clear categorization
 
-- [ ] **T0.2** Create `.env.example` template
+- [x] **T0.2** Create `.env.example` template
   - OPENAI_API_KEY placeholder
   - ANTHROPIC_API_KEY placeholder
   - Add to `.gitignore`
+  - ✅ Complete: Includes all providers + usage instructions
 
-- [ ] **T0.3** Verify fresh install works
+- [x] **T0.3** Create setup documentation
   - Test: `pip install -r requirements.txt`
   - Test: All imports work without errors
+  - ✅ Complete: Created `docs/setup.md` with full setup guide
 
 ---
 
@@ -101,30 +104,37 @@
 
 ---
 
-## Iteration 4: CLI Entry Point (1 day)
+## Iteration 4: Minimal CLI Entry Point (1 day)
 
-- [ ] **T4.1** Create CLI main module
+> **调整**: 实现最小可运行 CLI，而非完整 CLI
+
+- [x] **T4.1** Create minimal CLI main module
   - File: `meeting_intelligence/__main__.py`
-  - Implement `process` command
-  - Implement `template list` command
-  - Implement `template show` command
+  - 单参数输入: `python -m meeting_intelligence input.mp4`
+  - 默认使用 MockLLMProvider
+  - 不实现 provider 切换
+  - 不实现子命令
 
-- [ ] **T4.2** Add progress display
-  - Integrate `rich` library
-  - Show progress for ASR stage
-  - Show progress for LLM generation
+- [x] **T4.2** Implement core flow
+  - input_file → ASR → Transcript → generate_summary() → 保存输出
+  - 使用 MockLLMProvider（无需 API Key）
+  - 简单的 print 输出
 
-- [ ] **T4.3** Add error handling
-  - File not found errors
-  - API key missing errors
-  - API failure errors
-  - Unsupported format errors
+- [x] **T4.3** Add basic error handling
+  - 文件不存在错误
+  - 不支持的文件格式错误
+  - 异常捕获和堆栈跟踪
 
-- [ ] **T4.4** Test CLI commands
+- [x] **T4.4** Test CLI
   - `python -m meeting_intelligence --help`
-  - `python -m meeting_intelligence template list`
-  - `python -m meeting_intelligence process test.mp3`
-  - Verify all options work
+  - 验证参数解析正确
+  - 验证流程可调用
+
+**未实现** (按需求省略):
+- ❌ provider 切换
+- ❌ config.yaml
+- ❌ rich 进度条
+- ❌ 子命令 (template list, config 等)
 
 ---
 

@@ -23,7 +23,10 @@
       "Bash(find /mnt/d/meeting_intelligence -name \"summary_*.md\" -type f -mmin -30 2>/dev/null | head -10)",
       "Bash(ps -fp 47526 && kill 47526 2>/dev/null; sleep 1; ps -fp 47526 2>/dev/null || echo \"进程已终止\")",
       "Bash(curl -s \"https://open.bigmodel.cn/api/paas/v4/rate_limit\" -H \"Authorization: Bearer $ZHIPU_API_KEY\" 2>/dev/null || echo \"无法查询配额状态\")",
-      "Bash(grep -n \"max_tokens\" /mnt/d/meeting_intelligence/summarizer/*.py /mnt/d/meeting_intelligence/summarizer/**/*.py 2>/dev/null)"
+      "Bash(grep -n \"max_tokens\" /mnt/d/meeting_intelligence/summarizer/*.py /mnt/d/meeting_intelligence/summarizer/**/*.py 2>/dev/null)",
+      "Bash(cat > /mnt/d/projects/Meeting_intelligence/tests/test_mapper/__init__.py << 'EOF'\n# Tests for mapper module\nEOF)",
+      "Bash(ls -la *.md)",
+      "Bash(ffprobe -hide_banner data/raw_audio/audio_20260302_184220.mp3 2>&1 | head -10)"
     ]
   }
 }

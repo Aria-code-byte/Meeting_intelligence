@@ -1,26 +1,45 @@
-# AI Meeting Assistant - Dependencies
+# ============================================
+# AI Meeting Assistant - Python Dependencies
+# ============================================
+# Python 3.10+ required
+# Install: pip install -r requirements.txt
 
-# Core dependencies
-pytest>=7.4.0
-pathlib
+# --------------------------------------------
+# Core Dependencies (必需)
+# --------------------------------------------
 
-# LLM providers
-openai>=1.0.0
-anthropic>=0.18.0
-zhipuai>=2.0.0  # 智谱 AI (GLM)
+# LLM Providers (至少需要配置一个)
+openai>=1.0.0          # OpenAI GPT models
+anthropic>=0.18.0      # Anthropic Claude models
+zhipuai>=2.0.0         # Zhipu AI GLM models (智谱AI)
 
-# ASR (Automatic Speech Recognition)
-openai-whisper>=20230314
-# faster-whisper>=0.10.0  # Optional: faster alternative
+# ASR - Automatic Speech Recognition
+openai-whisper>=20230314  # 本地语音识别
 
 # Configuration & Environment
-python-dotenv>=1.0.0
-pyyaml>=6.0
+python-dotenv>=1.0.0   # 环境变量加载 (.env 文件)
+pyyaml>=6.0             # YAML 配置文件解析
 
 # CLI & UI
-rich>=13.0.0  # Terminal formatting
-tqdm>=4.65.0  # Progress bars
+rich>=13.0.0            # 终端美化输出
+tqdm>=4.65.0            # 进度条显示
 
-# Note: ffmpeg must be installed separately
-# Ubuntu/Debian: sudo apt-get install ffmpeg
-# macOS: brew install ffmpeg
+# --------------------------------------------
+# Development Dependencies (开发)
+# --------------------------------------------
+
+pytest>=7.4.0           # 单元测试框架
+
+# --------------------------------------------
+# Optional Dependencies (可选)
+# --------------------------------------------
+# faster-whisper>=0.10.0  # Whisper 的更快实现 (未启用)
+
+# --------------------------------------------
+# External Dependencies (需系统级安装)
+# --------------------------------------------
+# FFmpeg - 音频/视频处理
+#   Ubuntu/Debian: sudo apt-get install ffmpeg
+#   macOS: brew install ffmpeg
+#   Windows: https://ffmpeg.org/download.html
+# --------------------------------------------
