@@ -191,10 +191,34 @@
 ## Definition of Done
 
 Each iteration is complete when:
-- [ ] All tasks checked off
-- [ ] Tests pass
-- [ ] Code follows project conventions
-- [ ] Relevant documentation updated
+- [x] All tasks checked off
+- [x] Tests pass
+- [x] Code follows project conventions
+- [x] Relevant documentation updated
+
+## MVP Completion Checklist
+
+- [x] Can process meeting via CLI
+- [x] Real LLM generates summary
+- [x] Summary JSON is valid
+- [x] 5+ templates work
+- [x] Documentation exists
+- [x] Configuration works (.env)
+- [x] Tests cover core paths
+- [x] `data/summaries/` has real outputs
+
+## Completed Iterations (2026-03-02)
+
+- [x] Iteration 0: Environment & Dependencies
+- [x] Iteration 1: Core LLM Loop Validation
+- [x] Iteration 4: Minimal CLI Entry Point
+
+## Pending Iterations
+
+- [ ] Iteration 2: Transcript Quality Optimization
+- [ ] Iteration 3: LLM Prompt & Parsing Optimization
+- [ ] Iteration 5: Configuration Management
+- [ ] Iteration 6: Testing & Documentation
 
 ## MVP Completion Checklist
 
