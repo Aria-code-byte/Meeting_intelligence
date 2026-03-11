@@ -36,9 +36,13 @@ Thumbs.db
 # Secrets
 ############################
 .env
-.env.*
+.env.local
+.env.*.local
 *.key
 *.pem
+
+# 但保留示例配置文件
+!.env.example
 
 ############################
 # Logs

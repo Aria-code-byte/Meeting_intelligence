@@ -105,6 +105,27 @@ source venv/bin/activate  # Linux/macOS
 pip install pytest
 ```
 
+### 配置环境变量
+
+复制示例配置文件并填入你的 API Keys：
+
+```bash
+# 复制配置模板
+cp .env.example .env
+
+# 编辑 .env 文件，填入你的 API Keys
+# 至少配置以下其中一个：
+#   - OPENAI_API_KEY (OpenAI GPT)
+#   - ANTHROPIC_API_KEY (Anthropic Claude)
+#   - ZHIPU_API_KEY (智谱 GLM)
+#   - DEEPSEEK_API_KEY (DeepSeek)
+```
+
+**⚠️ 安全提示**：
+- **切勿**将 `.env` 文件提交到 Git（已添加到 `.gitignore`）
+- 如需分享项目，仅分享 `.env.example` 模板文件
+- 定期轮换你的 API Keys
+
 ### 运行测试
 
 ```bash
