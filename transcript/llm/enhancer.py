@@ -298,6 +298,9 @@ class LLMTranscriptEnhancer:
         elif provider_name == "glm":
             from summarizer.llm.glm import GLMProvider
             return GLMProvider(model=self.config.model)
+        elif provider_name == "deepseek":
+            from summarizer.llm.deepseek import DeepSeekProvider
+            return DeepSeekProvider(model=self.config.model)
         else:
             raise ValueError(f"不支持的 LLM 提供商: {self.config.provider}")
 
