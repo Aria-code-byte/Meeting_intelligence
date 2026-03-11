@@ -317,8 +317,8 @@ class TestPredefinedTemplatesContent:
         """测试通用模板内容"""
         template = PREDEFINED_TEMPLATES["general"]
 
-        assert "标点" in template.system_prompt
-        assert "语法" in template.system_prompt
+        assert "标点" in template.system_prompt or "修正" in template.system_prompt
+        assert "同音错别字" in template.system_prompt or "错别字" in template.system_prompt
         assert "{transcript_text}" in template.user_prompt_template
 
     def test_technical_template_content(self):

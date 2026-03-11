@@ -6,6 +6,8 @@ Template module - 用户模板系统
 """
 
 from template.types import UserTemplate, TemplateSection, SummaryAngle, OutputFormat
+from template import refiner
+from template import recorder
 from template.defaults import (
     get_default_template,
     list_default_templates,

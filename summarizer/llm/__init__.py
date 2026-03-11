@@ -9,6 +9,7 @@ from summarizer.llm.openai import OpenAIProvider
 from summarizer.llm.anthropic import AnthropicProvider
 from summarizer.llm.glm import GLMProvider
 from summarizer.llm.mock import MockLLMProvider
+from summarizer.llm.deepseek import DeepSeekProvider
 
 __all__ = [
     "BaseLLMProvider",
@@ -18,4 +19,5 @@ __all__ = [
     "AnthropicProvider",
     "GLMProvider",
     "MockLLMProvider",
+    "DeepSeekProvider",
 ]

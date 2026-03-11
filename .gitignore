@@ -49,27 +49,69 @@ Thumbs.db
 # Project generated data (per your structure)
 # Keep config/templates; ignore run outputs
 ############################
-# Audio/video inputs & derived media (usually large)
-data/raw_audio/
+
+# Audio/video files - all formats (inputs & derived media)
 *.wav
 *.mp3
 *.m4a
 *.flac
 *.aac
 *.ogg
+*.wma
+*.opus
 *.mp4
 *.mkv
 *.mov
+*.avi
+*.webm
+*.flv
+*.wmv
+*.m4v
 
-# Generated artifacts
+# Generated artifacts - data directory
+data/raw_audio/
 data/transcripts/
 data/summaries/
+data/outputs/
 data/formatted/
-data/output/
-
-# If you also have temp folders
 data/tmp/
+
+# Generated artifacts - outputs directory
+outputs/
+
+# Input media files (keep directory structure, ignore media files)
+input/*.wav
+input/*.mp3
+input/*.m4a
+input/*.flac
+input/*.aac
+input/*.ogg
+input/*.mp4
+input/*.mkv
+input/*.mov
+input/*.avi
+input/*.webm
+
+# Intermediate audio files
+audio/*.wav
+audio/*.mp3
+audio/*.m4a
+audio/*.flac
+audio/*.aac
+
+# Temporary files
 tmp/
+temp/
+*.tmp
+*.bak
+*.swp
+
+# JSON output files (transcripts, summaries, results)
+*_transcript*.json
+*_summary*.json
+*_output*.json
+pipeline_results*.json
+error_log*.txt
 
 ############################
 # Jupyter (if you use it)

@@ -4,15 +4,64 @@
 
 ## 项目简介
 
-AI Meeting Assistant V1 是一个独立的智能模块，将会议转换为：
+AI Meeting Assistant V1 是一个智能会议处理系统，将音频/视频会议转换为：
 - **原始会议文档**（逐字转写 + 时间轴）
+- **增强版转录**（LLM 修正错别字、优化语句、保持口语风格）
+- **带时间索引的纯净实录**（分块整理，带时间戳）
 - **角色视角总结**（基于用户自定义模板）
+
+### 当前状态
+- **测试覆盖**: 454 个测试用例全部通过
+- **开发进度**: PR1-PR3 已完成，PR4（高精度语义增强）进行中
+- **Python 版本**: 3.12+
+
+---
+
+## 技术栈
+
+### 核心技术
+| 类别 | 技术选型 | 用途 |
+|------|----------|------|
+| **语言** | Python 3.12+ | 核心开发语言 |
+| **测试** | pytest | 单元测试与集成测试 |
+| **数据模型** | dataclasses | 类型安全的数据结构 |
+
+### 音视频处理
+| 技术 | 用途 |
+|------|------|
+| FFmpeg | 音频提取、格式标准化 |
+| 音频规范 | WAV, 16kHz, 单声道, 16-bit PCM |
+
+### ASR 语音识别
+| Provider | 模型 | 说明 |
+|----------|------|------|
+| Whisper | base/small/medium | 本地/云端语音识别 |
+| faster-whisper | - | 生产环境推荐（更快） |
+
+### LLM 集成
+| Provider | 支持模型 | 用途 |
+|----------|----------|------|
+| OpenAI | gpt-4o-mini, gpt-4 | 转录增强、会议总结 |
+| Anthropic | claude-3-5-sonnet | 转录增强、会议总结 |
+| GLM (智谱) | glm-4-flash | 国产 LLM 支持 |
+| Mock | - | 测试环境 |
+
+### 提示词工程
+- **Few-shot 学习**: 带示例的提示词模板
+- **负面约束**: 明确禁止的行为
+- **模板系统**: 通用/技术/高管/个人叙述等多种场景
+
+### 架构特性
+- **整数毫秒时间模型**: 避免浮点精度问题
+- **确定性分块**: 基于时间窗口的 chunk 划分
+- **分层工件**: raw/enhanced 转录分离
+- **OpenSpec**: 规范化的变更提案管理
 
 ## 快速开始
 
 ### 环境要求
 
-- Python 3.10+
+- Python 3.12+ (项目已适配 3.12 特性)
 - FFmpeg（音视频处理）
 - Whisper（ASR 语音识别）
 
@@ -63,6 +112,30 @@ pytest tests/ -v
 # 运行特定模块测试
 pytest tests/test_asr_transcribe.py -v
 ```
+
+### CLI 使用示例
+
+```bash
+# 基础使用（Mock LLM，用于测试）
+python -m meeting_intelligence meeting.mp4
+
+# 使用 GLM（智谱 AI）处理
+python -m meeting_intelligence meeting.mp3 --provider glm
+
+# 使用 OpenAI 处理，指定模板
+python -m meeting_intelligence meeting.mp4 --provider openai --template general
+
+# 使用 Anthropic，指定模型
+python -m meeting_intelligence meeting.mp4 --provider anthropic --model claude-3-5-sonnet-20241022
+
+# 不保存结果到文件
+python -m meeting_intelligence meeting.mp3 --no-save
+```
+
+**输出文件**：
+- `data/transcripts/transcript_*.json` - 原始转录（JSON）
+- `data/outputs/*_enhanced_*.txt` - 增强文稿
+- `data/outputs/*_refined_*.txt` - 带时间索引的纯净实录
 
 ## 项目结构
 
@@ -115,49 +188,68 @@ meeting_intelligence/
 ## 功能模块
 
 ### Phase 1: 会议输入模块 ✅
-
 - **音频上传**: 支持 mp3, wav, m4a 格式
 - **视频上传**: 支持 mp4, mkv, mov 格式
 - **应用录音**: 本地麦克风录音框架
 - **统一接口**: `MeetingInputResult` 数据结构
 
 ### Phase 2: 音频处理模块 ✅
-
 - **音频提取**: 使用 ffmpeg 从视频中提取音轨
 - **格式标准化**: WAV, 16kHz, 单声道, 16-bit PCM
 - **音频预处理**: 音量归一化、可选静音裁剪
 
 ### Phase 3: ASR 语音转文字模块 ✅
-
 - **Whisper 集成**: 本地/云端 Whisper 支持
 - **多语言**: 中英文混合识别
 - **时间戳**: 每句话带精确时间戳
-- **结果持久化**: JSON 格式保存到 `data/transcripts/`
+- **结果持久化**: JSON 格式保存
 
 ### Phase 4: 原始会议文档模块 ✅
-
 - **文档生成**: 从 ASR 结果生成结构化文档
 - **多格式导出**: JSON、TXT、Markdown 格式
 - **时间查询**: 按时间范围查询语音片段
 - **自动集成**: ASR 转写后自动构建文档
 
 ### Phase 5: 用户模板系统 ✅
-
 - **模板定义**: 角色、总结角度、关注重点
 - **默认模板**: 产品经理、开发者、设计师、高管、通用
 - **模板管理**: 创建、更新、删除自定义模板
 - **提示词生成**: 将模板转换为 LLM 提示词
 
 ### Phase 6: LLM 总结引擎 ✅
-
-- **LLM 抽象**: 支持 OpenAI、Anthropic、Mock 提供商
+- **LLM 抽象**: 支持 OpenAI、Anthropic、GLM、Mock 提供商
 - **总结生成**: 整合 transcript + template → 结构化总结
 - **端到端流程**: 音频/视频 → 总结（一键生成）
 - **多格式导出**: JSON、TXT、Markdown
 
-- 会议文档生成
-- 用户模板系统
-- 总结引擎（LLM）
+### Phase 7: 转录增强模块 ✅ (PR1-PR3)
+**核心功能**：
+- **原始转录**: Whisper ASR 逐字转写
+- **增强转录**: LLM 修正同音错别字、删除冗余语气词
+- **时间索引实录**: 分块整理，带时间戳的纯净文本
+
+**技术特性**：
+- **确定性分块**: 基于固定时间窗口（60秒）+ 重叠（10秒）
+- **整数毫秒模型**: 避免浮点时间精度问题
+- **分层工件**: raw/enhanced 转录分离存储
+- **Few-shot 提示词**: 带示例的 ASR 错误修正
+
+**支持的提示词模板**：
+| 模板名称 | 适用场景 |
+|----------|----------|
+| general | 通用优化（带 Few-shot 示例） |
+| technical | 技术会议（保留术语） |
+| executive | 高管汇报（商务风格） |
+| minimal | 最小改动（保留原文） |
+| speech-to-text-refiner | 个人叙述精修（加粗数字） |
+
+### Phase 8: 高精度语义增强 🚧 (PR4 进行中)
+**目标改进**：
+- **增强粒度**: 整块 → 单句级别
+- **回退粒度**: 整块 → 单句级别
+- **映射策略**: 3级优先（精确/embedding/位置）
+- **置信度**: 二元 → 连续值（多特征加权）
+- **多轮增强**: 可选的多轮迭代优化
 
 ## 音频输出格式规范
 
@@ -434,14 +526,26 @@ summary = generate_summary(
 - 集成测试: 跨模块工作流测试
 - 使用 pytest 和 mock 进行隔离测试
 
-## 待办事项
+## 开发进度
 
-- [x] Phase 1: 会议输入模块
-- [x] Phase 2: 音频处理模块
-- [x] Phase 3: ASR 语音转文字模块
-- [x] Phase 4: 原始会议文档模块
-- [x] Phase 5: 用户模板系统
-- [x] Phase 6: LLM 总结引擎
+### 已完成 (PR1-PR3)
+- [x] PR1: Raw/Enhanced 工件分层架构
+- [x] PR2: 确定性分块 + 整数毫秒时间模型
+- [x] PR3: 轻量级 LLM 转录增强接入
+- [x] Phase 1-6: 基础会议处理流程
+- [x] Phase 7: 转录增强模块（含时间索引实录）
+
+### 进行中 (PR4)
+- [ ] Phase 8: 高精度语义增强
+  - [ ] 单句级别增强
+  - [ ] 多级映射策略
+  - [ ] 连续置信度计算
+  - [ ] 可选多轮增强
+
+### 项目里程碑
+- **测试覆盖**: 454 个测试用例
+- **代码质量**: 防御性编程、完整类型注解
+- **文档完善**: 架构决策文档、OpenSpec 变更提案
 
 ## 许可证
 

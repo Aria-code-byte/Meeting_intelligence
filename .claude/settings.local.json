@@ -26,7 +26,30 @@
       "Bash(grep -n \"max_tokens\" /mnt/d/meeting_intelligence/summarizer/*.py /mnt/d/meeting_intelligence/summarizer/**/*.py 2>/dev/null)",
       "Bash(cat > /mnt/d/projects/Meeting_intelligence/tests/test_mapper/__init__.py << 'EOF'\n# Tests for mapper module\nEOF)",
       "Bash(ls -la *.md)",
-      "Bash(ffprobe -hide_banner data/raw_audio/audio_20260302_184220.mp3 2>&1 | head -10)"
+      "Bash(ffprobe -hide_banner data/raw_audio/audio_20260302_184220.mp3 2>&1 | head -10)",
+      "Bash(git add docs/progress/2026-03-02-mvp-completion-progress.md openspec/changes/2026-02-25-mvp-completion/tasks.md\ngit commit -m \"$\\(cat <<'EOF'\ndocs: 添加项目进度报告 \\(2026-03-02\\)\n\n## 新增文档\n- docs/progress/2026-03-02-mvp-completion-progress.md\n  - 执行摘要\n  - MVP Completion 进度\n  - CLI 命令参考\n  - 下一步工作\n\n## 更新\n- openspec/changes/2026-02-25-mvp-completion/tasks.md\n  - 标记 Iteration 0, 1, 4 完成\n  - 更新 MVP Checklist\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(echo \"=== Outputs Summary ===\" && echo \"\" && \\\\\nfor f in /mnt/d/projects/Meeting_intelligence/outputs/*; do\n  echo \"File: $\\(basename $f\\)\"\n  echo \"Size: $\\(stat -c%s \"$f\"\\) bytes\"\n  echo \"Date: $\\(stat -c%y \"$f\"\\)\"\n  echo \"\"\ndone)",
+      "Bash(echo \"=== Outputs Summary ===\" && echo \"\" && \\\\\nls -la /mnt/d/projects/Meeting_intelligence/outputs/ && echo \"\" && \\\\\necho \"=== File Details ===\" && \\\\\nfor f in /mnt/d/projects/Meeting_intelligence/outputs/*; do\n  echo \"File: $\\(basename $f\\)\"\n  echo \"Size: $\\(stat -c%s \"$f\"\\) bytes\"\n  echo \"Date: $\\(stat -c%y \"$f\"\\)\"\n  echo \"\"\ndone)",
+      "Bash(export ZHIPU_API_KEY=\"97881a34e3bd47ea937c6299b1fbb203.Ctt352NlOwUWHjB8\" && \\\\\npython -m meeting_intelligence data/raw_audio/test_meeting_1min.wav --provider glm 2>&1)",
+      "Bash(ls -la /mnt/d/projects/Meeting_intelligence/data/outputs/*.txt /mnt/d/projects/Meeting_intelligence/data/outputs/*.json 2>/dev/null | tail -10)",
+      "Bash(ls -la /mnt/d/projects/Meeting_intelligence/data/raw_audio/*.wav | grep -i \"30min\\\\|30_min\")",
+      "Bash(find /mnt/d/projects/Meeting_intelligence -name \"*.mp4\" -o -name \"*.mp3\" -o -name \"*.wav\" -o -name \"*.m4a\" 2>/dev/null | head -20)",
+      "Bash(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 \"/mnt/d/projects/Meeting_intelligence/data/raw_audio/audio_20260227_135308.mp3\" 2>/dev/null)",
+      "Bash(for f in /mnt/d/projects/Meeting_intelligence/data/raw_audio/video_20260304_*.mp4)",
+      "Bash(do echo -n '$\\(basename $f\\): ')",
+      "Bash(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 $f)",
+      "Bash(ls -lh /mnt/d/projects/Meeting_intelligence/data/raw_video/*.mp4 2>/dev/null | tail -5)",
+      "Bash(find /mnt/d/projects/Meeting_intelligence/data -name \"*.mp4\" -exec ls -lh {} \\\\; 2>/dev/null | grep -E \"M|G\" | sort -k5 -h | tail -10)",
+      "Bash(ls -la /mnt/d/projects/Meeting_intelligence/data/raw_audio/test_meeting*.wav 2>/dev/null)",
+      "Bash(ls -la /mnt/d/projects/Meeting_intelligence/data/outputs/*.json 2>/dev/null | head -20)",
+      "Bash(find /mnt/d/projects/Meeting_intelligence/data -name \"*summary*.json\" -o -name \"*summary*.txt\" 2>/dev/null | head -20)",
+      "Bash(sed -i '618,621s/\"模板名称不能为空！\",//' /mnt/d/projects/Meeting_intelligence/meeting_intelligence/cli.py && sed -i '630,633s/\"模板描述不能为空！\",//' /mnt/d/projects/Meeting_intelligence/meeting_intelligence/cli.py && echo \"参数修正完成\")",
+      "Bash(sed -i \"s/_get_input_with_retry/_get_clean_input/g\" /mnt/d/projects/Meeting_intelligence/tests/test_cli.py && sed -i \"/assert 'error_msg' in sig.parameters/d\" /mnt/d/projects/Meeting_intelligence/tests/test_cli.py && echo \"测试文件更新完成\")",
+      "Bash(cat > /tmp/fix_patch.txt << 'EOF'\n        if edit_choice in \\(2, 3\\):\n            # 修改描述\n            print\\(f\"\\\\n当前描述: {selected_template.description}\"\\)\n            new_description = self._get_clean_input\\(\n                \"请输入新描述: \",\n                allow_empty=False\n            \\)\n\n        # 执行更新\nEOF\nsed -i '628,632d' /mnt/d/projects/Meeting_intelligence/meeting_intelligence/cli.py\nsed -i '627r /tmp/fix_patch.txt' /mnt/d/projects/Meeting_intelligence/meeting_intelligence/cli.py\necho \"代码已修复\")",
+      "Bash(ls -la /mnt/d/projects/Meeting_intelligence/data/outputs/meeting_01_*总结.txt 2>/dev/null || echo \"总结文件已生成\")",
+      "Bash(curl -s https://api.deepseek.com/models \\\\\n  -H \"Authorization: Bearer ***REMOVED***\" \\\\\n  | python -m json.tool 2>/dev/null | head -50)",
+      "Bash(find /mnt/d/projects/Meeting_intelligence -name \"*.pyc\" -delete && find /mnt/d/projects/Meeting_intelligence -name \"__pycache__\" -type d -exec rm -rf {} + 2>/dev/null; echo \"缓存已清除\")",
+      "Bash(find /mnt/d/projects/Meeting_intelligence -name \"*.pyc\" -delete && find /mnt/d/projects/Meeting_intelligence -name \"__pycache__\" -type d -exec rm -rf {} + 2>/dev/null; echo \"✓ Python 缓存已清除\")"
     ]
   }
 }
