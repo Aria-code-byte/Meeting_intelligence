@@ -1,0 +1,194 @@
+#!/bin/bash
+# =============================================================================
+# Pre-Commit Hook - 防止敏感信息提交
+# 用途: 在提交前检查是否包含敏感信息
+# =============================================================================
+
+set -e
+
+# 颜色定义
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
+GREEN='\033[0;32m'
+NC='\033[0m'
+
+# 标记是否发现错误
+ERRORS=0
+
+# 敏感信息正则表达式
+PATTERNS=(
+    # API Keys - OpenAI
+    "sk-[a-zA-Z0-9]{48}"
+    # API Keys - Anthropic
+    "sk-ant-[a-zA-Z0-9_-]{95}"
+    # API Keys - DeepSeek
+    "sk-[a-zA-Z0-9]{44}"
+    # API Keys - 通用模式
+    "api[_-]?key[[:space:]]*[:=][[:space:]]*['\"]?[a-zA-Z0-9_-]{20,}['\"]?"
+    # 密码字段
+    "password[[:space:]]*[:=][[:space:]]*['\"]?[^\s'\"]{8,}['\"]?"
+    # Token
+    "token[[:space:]]*[:=][[:space:]]*['\"]?[a-zA-Z0-9_-]{20,}['\"]?"
+    # Secret
+    "secret[[:space:]]*[:=][[:space:]]*['\"]?[a-zA-Z0-9_-]{20,}['\"]?"
+)
+
+# 禁止提交的文件模式
+FORBIDDEN_FILES=(
+    ".env$"
+    ".env.local"
+    ".env.*.local"
+    "\.bak$"
+    "\.swp$"
+    "\.tmp$"
+    "~$"
+    "*.key"
+    "*.pem"
+    "id_rsa"
+    "id_ed25519"
+)
+
+echo -e "${GREEN}════════════════════════════════════════════════════════════${NC}"
+echo -e "${GREEN}         Pre-Commit 钩子 - 敏感信息检查${NC}"
+echo -e "${GREEN}════════════════════════════════════════════════════════════${NC}"
+echo ""
+
+# 获取暂存的文件
+STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM)
+
+if [ -z "$STAGED_FILES" ]; then
+    echo "没有暂存的文件，跳过检查。"
+    exit 0
+fi
+
+echo "检查 ${#STAGED_FILES[@]} 个暂存文件..."
+echo ""
+
+# =============================================================================
+# 检查 1: 禁止的文件名
+# =============================================================================
+echo -e "${YELLOW}[1/4] 检查禁止的文件类型...${NC}"
+
+FORBIDDEN_FOUND=0
+for file in $STAGED_FILES; do
+    for pattern in "${FORBIDDEN_FILES[@]}"; do
+        if echo "$file" | grep -qE "$pattern"; then
+            echo -e "${RED}✗ 禁止提交: $file (匹配模式: $pattern)${NC}"
+            FORBIDDEN_FOUND=1
+            ERRORS=1
+        fi
+    done
+done
+
+if [ $FORBIDDEN_FOUND -eq 0 ]; then
+    echo -e "${GREEN}✓ 未发现禁止的文件类型${NC}"
+fi
+echo ""
+
+# =============================================================================
+# 检查 2: 敏感信息内容
+# =============================================================================
+echo -e "${YELLOW}[2/4] 检查敏感信息内容...${NC}"
+
+SENSITIVE_FOUND=0
+for file in $STAGED_FILES; do
+    # 跳过二进制文件
+    if git diff --cached --name-only | grep -q "^$file$" && ! file "$file" 2>/dev/null | grep -q "text"; then
+        continue
+    fi
+
+    # 检查文件内容
+    for pattern in "${PATTERNS[@]}"; do
+        # 使用 git show 获取暂存内容
+        if git show :"$file" 2>/dev/null | grep -iE "$pattern" > /dev/null; then
+            echo -e "${RED}✗ 发现敏感信息: $file${NC}"
+            echo -e "  匹配模式: $pattern"
+
+            # 显示匹配的行（最多3行）
+            MATCHED_LINES=$(git show :"$file" 2>/dev/null | grep -iE "$pattern" | head -3)
+            echo "$MATCHED_LINES" | while IFS= read -r line; do
+                # 脱敏显示（只显示前20个字符）
+                SANITIZED=$(echo "$line" | cut -c1-60)
+                echo "  → $SANITIZED..."
+            done
+
+            SENSITIVE_FOUND=1
+            ERRORS=1
+        fi
+    done
+done
+
+if [ $SENSITIVE_FOUND -eq 0 ]; then
+    echo -e "${GREEN}✓ 未发现敏感信息${NC}"
+fi
+echo ""
+
+# =============================================================================
+# 检查 3: 大文件警告（可选）
+# =============================================================================
+echo -e "${YELLOW}[3/4] 检查大文件...${NC}"
+
+LARGE_FILE_THRESHOLD=1048576  # 1MB
+LARGE_FILES=0
+
+for file in $STAGED_FILES; do
+    FILE_SIZE=$(git cat-file -s :"$file" 2>/dev/null || echo 0)
+    if [ "$FILE_SIZE" -gt "$LARGE_FILE_THRESHOLD" ]; then
+        SIZE_MB=$(echo "scale=2; $FILE_SIZE / 1048576" | bc)
+        echo -e "${YELLOW}⚠ 大文件警告: $file (${SIZE_MB}MB)${NC}"
+        LARGE_FILES=1
+    fi
+done
+
+if [ $LARGE_FILES -eq 0 ]; then
+    echo -e "${GREEN}✓ 未发现大文件${NC}"
+fi
+echo ""
+
+# =============================================================================
+# 检查 4: 代码质量（可选的快速检查）
+# =============================================================================
+echo -e "${YELLOW}[4/4] 代码质量检查...${NC}"
+
+# 检查 Python 文件是否有语法错误
+PYTHON_ERROR=0
+for file in $STAGED_FILES; do
+    if [[ "$file" == *.py ]]; then
+        if ! python -m py_compile "$file" 2>/dev/null; then
+            echo -e "${RED}✗ Python 语法错误: $file${NC}"
+            PYTHON_ERROR=1
+            ERRORS=1
+        fi
+    fi
+done
+
+if [ $PYTHON_ERROR -eq 0 ]; then
+    echo -e "${GREEN}✓ Python 文件语法检查通过${NC}"
+fi
+echo ""
+
+# =============================================================================
+# 结果汇总
+# =============================================================================
+echo -e "${GREEN}════════════════════════════════════════════════════════════${NC}"
+
+if [ $ERRORS -ne 0 ]; then
+    echo ""
+    echo -e "${RED}❌ 预检钩子检查失败！${NC}"
+    echo ""
+    echo "发现以下问题:"
+    [ $FORBIDDEN_FOUND -ne 0 ] && echo "  - 包含禁止的文件类型"
+    [ $SENSITIVE_FOUND -ne 0 ] && echo "  - 包含敏感信息"
+    [ $PYTHON_ERROR -ne 0 ] && echo "  - Python 语法错误"
+    echo ""
+    echo -e "${YELLOW}解决方案:${NC}"
+    echo "1. 移除敏感信息或使用环境变量"
+    echo "2. 将敏感文件添加到 .gitignore"
+    echo "3. 使用 'git commit --no-verify' 跳过钩子（不推荐）"
+    echo ""
+    exit 1
+else
+    echo -e "${GREEN}✓ 所有检查通过，可以提交${NC}"
+    echo ""
+    exit 0
+fi
