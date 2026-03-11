@@ -28,6 +28,7 @@ ENV/
 ############################
 .vscode/
 .idea/
+.claude/
 .DS_Store
 Thumbs.db
 *.swp
