@@ -40,6 +40,27 @@ st.markdown("""
    克莱因蓝极简主义主题 (Klein Blue Minimalist)
    ============================================================ */
 
+/* 1. 全局清理：移除 Streamlit 顶部 Header 的残留白色方块与 Padding */
+.stAppHeader {
+    background-color: transparent !important;
+    border: none !important;
+    height: 0px !important;
+    padding: 0 !important;
+}
+
+/* 隐藏所有默认 Header 元素 */
+.stAppHeader [data-testid="stLogo"],
+.stAppHeader button {
+    display: none !important;
+}
+
+/* 内容区域边距调整 */
+.block-container {
+    padding-top: 1.5rem !important;
+    padding-bottom: 1.5rem !important;
+    max-width: 1400px !important;
+}
+
 /* 全局背景 - 极浅灰 */
 .stApp {
     background-color: #F8F9FA;
@@ -69,32 +90,73 @@ header {visibility: hidden;}
     border: none !important;
 }
 
-/* 移除顶部 Header 的背景和间距 */
-.stAppHeader {
-    background-color: transparent !important;
-    padding: 0 !important;
-}
-
-.block-container {
-    padding-top: 1rem !important;
-    padding-bottom: 1rem !important;
-}
-
-/* 隐藏 Streamlit 默认的顶部装饰 */
-.stAppHeader [data-testid="stLogo"] {
-    display: none;
-}
-
-/* 顶部导航栏 - 白色极简卡片 */
+/* 顶部导航栏 - 白色极简卡片 + Logo 容器 */
 .nav-container {
     position: sticky;
     top: 0;
     z-index: 999;
     background: #FFFFFF;
-    border-radius: 12px;
+    border-radius: 16px;
     box-shadow: 0 4px 6px rgba(0, 47, 167, 0.05);
-    padding: 8px 20px;
+    padding: 8px 30px !important;
     margin-bottom: 2rem;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+}
+
+/* Logo 容器样式 */
+.logo-container {
+    display: flex;
+    align-items: center;
+    margin-right: auto;
+}
+
+.logo-img {
+    width: 38px;
+    height: 38px;
+    margin-right: 12px;
+}
+
+.logo-text {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 1.3rem;
+    font-weight: 800;
+    color: #002FA7;
+    letter-spacing: -0.5px;
+}
+
+/* 导航选项容器 - 右对齐 */
+.nav-options {
+    display: flex;
+    gap: 8px;
+    margin-left: auto;
+}
+
+/* 导航链接样式 - 克莱因蓝 */
+.nav-link {
+    color: #6C757D !important;
+    font-size: 0.95rem !important;
+    font-weight: 500 !important;
+    padding: 8px 16px !important;
+    border-radius: 10px !important;
+    transition: all 0.2s ease !important;
+    cursor: pointer;
+}
+
+.nav-link:hover {
+    background-color: #F1F3FB !important;
+    color: #002FA7 !important;
+}
+
+.nav-link-selected {
+    background-color: #002FA7 !important;
+    color: #FFFFFF !important;
+}
+
+/* 选项菜单样式覆盖 */
+[data-testid="stHorizontalBlock"] {
+    background-color: transparent !important;
 }
 
 /* 自定义卡片 - 纯白无边框 */
@@ -831,8 +893,15 @@ def main():
         page_template_editor()
         return
 
-    # 顶部导航栏
-    st.markdown('<div class="nav-container">', unsafe_allow_html=True)
+    # 顶部导航栏 - Logo + 选项菜单
+    st.markdown(f"""
+    <div class="nav-container">
+        <div class="logo-container">
+            <span style="font-size: 2rem;">🧞</span>
+            <span class="logo-text">Jinni Meeting Elf</span>
+        </div>
+        <div class="nav-options">
+    """, unsafe_allow_html=True)
 
     selected_page = option_menu(
         menu_title=None,
@@ -843,12 +912,12 @@ def main():
         orientation="horizontal",
         styles={
             "container": {"padding": "0!important", "background-color": "transparent"},
-            "icon": {"color": "#002FA7", "font-size": "18px"},
+            "icon": {"color": "#002FA7", "font-size": "16px"},
             "nav-link": {
-                "font-size": "15px",
+                "font-size": "14px",
                 "color": "#6C757D",
-                "margin": "0px 8px",
-                "padding": "10px 20px",
+                "margin": "0px 4px",
+                "padding": "8px 16px",
                 "border-radius": "10px",
                 "font-weight": "500",
             },
@@ -856,13 +925,10 @@ def main():
                 "background-color": "#002FA7",
                 "color": "#FFFFFF",
             },
-            "nav-link:hover": {
-                "background-color": "rgba(0, 47, 167, 0.08)",
-            },
         }
     )
 
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('</div></div>', unsafe_allow_html=True)
 
     # 更新当前页面状态
     st.session_state.current_page = selected_page
