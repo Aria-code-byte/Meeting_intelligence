@@ -471,164 +471,310 @@ def copy_to_clipboard(text, button_text="📋 复制内容"):
 # ============================================================
 
 def page_main():
-    """主页面 - 智能会议处理"""
+    """主页面 - 智能会议处理 - 漏斗式业务流"""
     st.markdown('<h1 class="main-title">🎙️ 智能会议处理</h1>', unsafe_allow_html=True)
 
-    # 左右布局 - 移除边框容器，直接使用空白分隔
+    # 初始化状态
+    if 'uploaded_file_info' not in st.session_state:
+        st.session_state.uploaded_file_info = None
+    if 'transcript_ready' not in st.session_state:
+        st.session_state.transcript_ready = False
+    if 'processing_meeting_id' not in st.session_state:
+        st.session_state.processing_meeting_id = None
+
+    # 左右布局
     col_left, col_right = st.columns([3, 2], gap="large")
 
     # ========== 左侧：上传区域 ==========
     with col_left:
         st.markdown("##### 📁 会议文件存档")
 
-        uploaded_file = st.file_uploader(
-            "将视频或音频文件拖入此处开始处理",
-            type=["mp4", "wav", "mp3", "m4a", "webm"],
-            label_visibility="collapsed",
-            help="支持最大 1GB 的音视频文件"
-        )
+        # 初始化上传状态
+        if 'show_uploader' not in st.session_state:
+            st.session_state.show_uploader = True
 
-        # 会议标题输入 - 上传后显示
-        if uploaded_file:
-            # 显示文件信息卡片 - 克莱因蓝风格
-            st.markdown(f"""
-            <div style="padding: 20px; background: #F1F3FB; border-left: 4px solid #002FA7; border-radius: 10px; margin-top: 20px;">
-                <div style="font-size: 0.85rem; color: #6C757D; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">已选择文件</div>
-                <div style="font-size: 1.1rem; font-weight: 600; color: #002FA7; margin: 8px 0;">
-                    📄 {uploaded_file.name}
+        # 动态容器：上传框 / 任务卡片
+        upload_container = st.container()
+
+        with upload_container:
+            # 未上传状态：显示上传框
+            if st.session_state.show_uploader:
+                uploaded_file = st.file_uploader(
+                    "将视频或音频拖入此处开始处理",
+                    type=["mp4", "wav", "mp3", "m4a", "webm"],
+                    label_visibility="collapsed",
+                    help="支持最大 1GB 的音视频文件",
+                    key="main_uploader"
+                )
+
+                # 文件选择后自动切换到任务卡片
+                if uploaded_file:
+                    st.session_state.uploaded_file = uploaded_file
+                    st.session_state.show_uploader = False
+                    st.session_state.default_title = uploaded_file.name.rsplit('.', 1)[0]
+                    st.rerun()
+
+            # 已选择文件：显示任务确认卡片
+            else:
+                uploaded_file = st.session_state.uploaded_file
+
+                # 一体化任务卡片
+                st.markdown(f"""
+                <div style="background: #FFFFFF; padding: 24px; border-radius: 16px; border-left: 6px solid #002FA7; box-shadow: 0 4px 16px rgba(0,47,167,0.08); transition: all 0.3s ease;">
+                    <div style="display: flex; align-items: center; margin-bottom: 20px;">
+                        <span style="font-size: 32px; margin-right: 16px;">📄</span>
+                        <div style="flex: 1;">
+                            <div style="font-weight: 700; color: #212529; font-size: 1.1rem;">{uploaded_file.name}</div>
+                            <div style="color: #6C757D; font-size: 0.85rem;">{format_file_size(uploaded_file.size)} · {uploaded_file.type.upper()}</div>
+                        </div>
+                    </div>
                 </div>
-                <div style="font-size: 0.85rem; color: #6C757D;">
-                    大小: {format_file_size(uploaded_file.size)}
+                """, unsafe_allow_html=True)
+
+                # 标题编辑区
+                st.markdown("###### 📝 会议标题")
+                title = st.text_input(
+                    "会议标题",
+                    value=st.session_state.default_title,
+                    placeholder="例如：2026-03-11 产品周会",
+                    label_visibility="collapsed",
+                    key="upload_title"
+                )
+
+                st.markdown("<div style='font-size: 0.75rem; color: #ADB5BD; margin: -8px 0 12px;'>* 此标题将用于个人会议库检索</div>", unsafe_allow_html=True)
+
+                # 操作按钮组
+                col_confirm, col_change = st.columns([2, 1], gap="small")
+
+                with col_confirm:
+                    if st.button("✨ 确认并开始解析", type="primary", use_container_width=True, key="confirm_upload"):
+                        with st.spinner("🔄 正在上传..."):
+                            file_content = uploaded_file.getvalue()
+                            files = {"file": (uploaded_file.name, file_content, uploaded_file.type)}
+                            result = api_post("/api/upload", files=files, data={"title": title})
+
+                            if result:
+                                st.success(f"✅ 上传成功！会议 ID: {result['id']}")
+                                st.session_state.processing_meeting_id = result["id"]
+                                st.session_state.transcript_ready = False
+                                time.sleep(0.5)
+                                st.rerun()
+
+                with col_change:
+                    if st.button("🔄 更改文件", use_container_width=True, key="change_file"):
+                        st.session_state.show_uploader = True
+                        st.session_state.uploaded_file = None
+                        st.rerun()
+
+    # ========== 右侧：漏斗式任务配置 ==========
+    with col_right:
+        st.markdown("##### ⚡ 智能任务配置")
+
+        # 状态 0: 未上传
+        if not st.session_state.processing_meeting_id:
+            st.markdown("""
+            <div style="padding: 24px; text-align: center; background: #F1F3FB; border-radius: 12px; border: 2px solid #002FA7;">
+                <div style="color: #002FA7; font-weight: 600; font-size: 0.95rem;">请先上传会议文件</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        # 状态 1-3: 已上传，显示处理流程
+        else:
+            meeting = api_get(f"/api/meetings/{st.session_state.processing_meeting_id}")
+            if not meeting:
+                st.error("无法获取会议信息")
+                st.session_state.processing_meeting_id = None
+                st.rerun()
+                return
+
+            # 显示当前状态徽章
+            status_badge = {
+                "pending": ("⏳", "待处理", "#6C757D"),
+                "processing": ("🔄", "处理中", "#FF8C00"),
+                "completed": ("✅", "已完成", "#002FA7"),
+                "failed": ("❌", "失败", "#DC3545")
+            }.get(meeting["status"], ("📋", "未知", "#6C757D"))
+
+            st.markdown(f"""
+            <div style="background: #F8F9FA; padding: 10px 16px; border-radius: 10px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-size: 0.85rem; color: #6C757D;">{meeting['title']}</span>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span>{status_badge[0]}</span>
+                    <span style="color: {status_badge[2]}; font-weight: 600; font-size: 0.85rem;">{status_badge[1]}</span>
                 </div>
             </div>
             """, unsafe_allow_html=True)
 
-            # 会议标题输入
-            default_title = uploaded_file.name.rsplit('.', 1)[0]
-            title = st.text_input(
-                "📝 会议标题",
-                value=default_title,
-                placeholder="例如：2026-03-11 产品周会"
-            )
-
-            if st.button("✨ 确认上传", type="primary", use_container_width=True):
-                with st.spinner("🔄 正在上传并启动处理..."):
-                    file_content = uploaded_file.getvalue()
-                    files = {"file": (uploaded_file.name, file_content, uploaded_file.type)}
-
-                    result = api_post("/api/upload", files=files, data={"title": title})
-
-                    if result:
-                        st.success(f"✅ 上传成功！会议 ID: {result['id']}")
-                        st.session_state.selected_meeting_id = result["id"]
-                        time.sleep(1)
-                        st.rerun()
-
-    # ========== 右侧：操作区域 ==========
-    with col_right:
-        st.markdown("##### ⚡ 智能任务配置")
-
-        # 如果没有选中的会议，提示先上传
-        if not st.session_state.selected_meeting_id:
-            st.info("👈 请先在左侧上传会议文件")
-            return
-
-        # 获取会议信息
-        meeting = api_get(f"/api/meetings/{st.session_state.selected_meeting_id}")
-        if not meeting:
-            st.error("无法获取会议信息")
-            return
-
-        # 显示当前会议状态 - 克莱因蓝风格
-        status_emoji = {
-            "pending": "⏳",
-            "processing": "🔄",
-            "completed": "✅",
-            "failed": "❌"
-        }.get(meeting["status"], "📋")
-
-        status_badge_class = f"status-badge status-{meeting['status']}"
-
-        st.markdown(f"""
-        <div style="padding: 16px; background: #F8F9FA; border-left: 4px solid #002FA7; border-radius: 8px; margin-bottom: 20px;">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-                <div>
-                    <strong style="color: #212529; font-size: 1.05rem;">{status_emoji} {meeting['title']}</strong>
-                </div>
-                <span class="{status_badge_class}">{meeting['status']}</span>
+            # ========== 第一步：语音转文字 ==========
+            st.markdown("""
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+                <span style="background: #002FA7; color: white; width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 600;">1</span>
+                <span style="font-weight: 600; color: #212529; font-size: 0.9rem;">语音转文字</span>
             </div>
-        </div>
-        """, unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
 
-        # 提取文字稿按钮
-        if st.button("📝 提取文字稿", use_container_width=True, disabled=(meeting["status"] == "processing")):
-            with st.spinner("🔧 C++ 引擎正在高强度转录..."):
+            # 进度显示
+            if meeting["status"] == "processing":
+                st.progress(meeting["progress"] / 100)
+                progress_text = {
+                    (0, 30): "🔄 提取音频流...",
+                    (30, 60): "🎙️ Whisper ASR 转录中...",
+                    (60, 90): "🤖 LLM 语义增强...",
+                    (90, 100): "✨ 即将完成..."
+                }
+                for (start, end), text in progress_text.items():
+                    if start <= meeting["progress"] < end:
+                        st.caption(text)
+                        break
+
+                # 轮询更新
+                import time as time_module
+                for _ in range(30):
+                    time_module.sleep(2)
+                    status = api_get(f"/api/meetings/{meeting['id']}/status")
+                    if status and status["status"] == "completed":
+                        st.rerun()
+                        break
+                    elif status and status["status"] == "failed":
+                        st.error(f"❌ 处理失败: {status.get('error_message', '未知错误')}")
+                        break
+
+            # 提取按钮
+            extract_disabled = meeting["status"] in ["processing", "completed"]
+            button_type = "secondary" if extract_disabled else "primary"
+            if st.button("📝 提取文字稿", use_container_width=True, disabled=extract_disabled, type=button_type, key="extract_btn"):
                 result = api_post(f"/api/meetings/{meeting['id']}/transcribe")
                 if result:
-                    st.success("✅ 文字稿提取完成！")
                     st.rerun()
 
-        st.markdown("---")
+            # 完成标记
+            if meeting["status"] == "completed" or meeting.get("results"):
+                st.markdown("""
+                <div style="display: flex; align-items: center; gap: 6px; color: #002FA7; font-size: 0.85rem; margin-top: 8px;">
+                    <span>✓</span>
+                    <span>文字稿已就绪</span>
+                </div>
+                """, unsafe_allow_html=True)
+                st.session_state.transcript_ready = True
 
-        # 模板选择
-        templates = api_get("/api/templates")
-        if templates:
-            template_options = ["➕ 新增模板"] + [t["name"] for t in templates]
-        else:
-            template_options = ["➕ 新增模板", "通用周报（默认）", "技术评审（默认）"]
+            st.markdown("<div style='height: 1px; background: #E9ECEF; margin: 16px 0;'></div>", unsafe_allow_html=True)
 
-        selected_template = st.selectbox("🎨 选择总结模板", template_options)
+            # ========== 第二步：智能总结 ==========
+            st.markdown("""
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+                <span style="background: #6C757D; color: white; width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 600;">2</span>
+                <span style="font-weight: 600; color: #212529; font-size: 0.9rem;">智能总结</span>
+            </div>
+            """, unsafe_allow_html=True)
 
-        # 如果选择了新增模板，跳转到模板编辑
-        if selected_template == "➕ 新增模板":
-            st.session_state.show_template_editor = True
-            st.session_state.editing_template_id = None
-            st.rerun()
-
-        # 生成总结按钮
-        if st.button("🪄 生成智能总结", type="primary", use_container_width=True):
-            # 检查是否已提取文字稿
-            if not meeting.get("results"):
-                st.warning("⚠️ 请先点击「提取文字稿」按钮！")
+            # 模板选择
+            templates = api_get("/api/templates")
+            if templates:
+                template_names = [t["name"] for t in templates]
             else:
-                with st.spinner("🤖 AI 正在生成总结..."):
-                    # 这里调用总结 API
-                    st.success("✅ 总结生成完成！")
+                template_names = ["通用周报（默认）", "技术评审（默认）"]
+
+            col_sel, col_add = st.columns([5, 1])
+            with col_sel:
+                selected_template = st.selectbox("选择模板", template_names, label_visibility="collapsed", key="template_select")
+            with col_add:
+                if st.button("➕", help="新增模板", key="add_template_btn"):
+                    st.session_state.show_template_editor = True
+                    st.session_state.editing_template_id = None
                     st.rerun()
+
+            # 总结按钮（带条件判断）
+            if st.button("🪄 生成智能总结", use_container_width=True, key="summarize_btn"):
+                if not st.session_state.transcript_ready and meeting["status"] != "completed":
+                    st.toast("⚠️ 请先完成「提取文字稿」", icon="⚠️")
+                else:
+                    with st.spinner("🤖 AI 正在生成总结..."):
+                        template_id = None
+                        if templates and selected_template in template_names:
+                            template = next((t for t in templates if t["name"] == selected_template), None)
+                            if template:
+                                template_id = template["id"]
+
+                        if template_id:
+                            result = api_post(f"/api/meetings/{meeting['id']}/summarize", params={"template_id": template_id})
+                        else:
+                            result = {"message": "使用默认模板"}
+
+                        if result:
+                            st.success("✅ 总结生成完成！")
+                            time.sleep(0.5)
+                            st.rerun()
+
+            # 新建会议按钮
+            st.markdown("<div style='height: 1px; background: #E9ECEF; margin: 16px 0;'></div>", unsafe_allow_html=True)
+            if st.button("🆕 处理新会议", use_container_width=True, key="new_meeting_btn"):
+                st.session_state.processing_meeting_id = None
+                st.session_state.uploaded_file_info = None
+                st.session_state.transcript_ready = False
+                st.rerun()
 
     # ========== 底部：内容预览区 ==========
-    if meeting and meeting.get("results"):
-        st.markdown("---")
-        st.markdown("### 📄 内容预览")
+    if st.session_state.processing_meeting_id:
+        meeting = api_get(f"/api/meetings/{st.session_state.processing_meeting_id}")
+        if meeting and meeting.get("results"):
+            st.markdown("---")
+            st.markdown("### 📄 处理结果")
 
-        # 标签页
-        tab_transcript, tab_summary = st.tabs(["📝 文字稿", "🪄 AI 总结"])
-
-        with tab_transcript:
+            # 元数据展示
             result = api_get(f"/api/results/{meeting['results'][0]['id']}")
             if result:
-                transcript_text = result.get("transcript_raw", "暂无内容")
+                col_m1, col_m2, col_m3 = st.columns(3)
+                with col_m1:
+                    st.metric("字数", f"{result.get('word_count', 0):,}")
+                with col_m2:
+                    st.metric("时长", f"{result.get('duration', 0):.1f}秒")
+                with col_m3:
+                    st.metric("处理时间", f"{result.get('processing_time', 0):.1f}秒")
 
-                # 显示 Markdown 预览
-                st.markdown('<div class="markdown-preview">', unsafe_allow_html=True)
-                st.markdown(transcript_text)
-                st.markdown('</div>', unsafe_allow_html=True)
+            # 标签页
+            tab_transcript, tab_summary = st.tabs(["📝 文字稿", "🪄 AI 总结"])
 
-                # 操作按钮
-                col1, col2 = st.columns(2)
-                with col1:
-                    copy_to_clipboard(transcript_text)
-                with col2:
-                    st.download_button(
-                        "📥 下载 .md 文件",
-                        data=transcript_text,
-                        file_name=f"{meeting['title']}_文字稿.md",
-                        mime="text/markdown",
-                        use_container_width=True
-                    )
+            with tab_transcript:
+                if result:
+                    transcript_text = result.get("transcript_raw", "暂无内容")
+                    st.markdown('<div class="markdown-preview" style="max-height: 400px;">', unsafe_allow_html=True)
+                    st.markdown(transcript_text)
+                    st.markdown('</div>', unsafe_allow_html=True)
 
-        with tab_summary:
-            st.info("👆 请先在上方选择模板并生成总结")
+                    # 操作按钮
+                    col_copy, col_download = st.columns(2)
+                    with col_copy:
+                        copy_to_clipboard(transcript_text, "📋 复制")
+                    with col_download:
+                        st.download_button(
+                            "📥 下载",
+                            data=transcript_text,
+                            file_name=f"{meeting['title']}_文字稿.md",
+                            mime="text/markdown",
+                            use_container_width=True
+                        )
+
+            with tab_summary:
+                if result:
+                    summary_data = result.get("summary_json", {})
+                    templates_list = summary_data.get("templates", [])
+
+                    if templates_list:
+                        for tmpl in templates_list:
+                            role = tmpl.get("role", "未知角色")
+                            content = tmpl.get("content", {})
+                            sections = content.get("sections", [])
+
+                            with st.expander(f"📌 {role}", expanded=True):
+                                for section in sections:
+                                    title = section.get("title", "")
+                                    section_content = section.get("content", "")
+                                    if title:
+                                        st.markdown(f"**{title}**")
+                                    if section_content:
+                                        st.markdown(section_content)
+                    else:
+                        st.info("👆 请先在右侧选择模板并生成总结")
 
 
 # ============================================================
