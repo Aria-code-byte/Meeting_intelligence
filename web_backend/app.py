@@ -429,7 +429,7 @@ def api_post(endpoint, **kwargs):
     try:
         response = requests.post(
             f"http://localhost:8000{endpoint}",
-            timeout=300,
+            timeout=600,  # 增加到 10 分钟以支持长音频
             **kwargs
         )
         if response.status_code == 200:
@@ -762,17 +762,23 @@ def page_main():
                     if templates_list:
                         for tmpl in templates_list:
                             role = tmpl.get("role", "未知角色")
-                            content = tmpl.get("content", {})
-                            sections = content.get("sections", [])
+                            content = tmpl.get("content", "")
 
-                            with st.expander(f"📌 {role}", expanded=True):
-                                for section in sections:
-                                    title = section.get("title", "")
-                                    section_content = section.get("content", "")
-                                    if title:
-                                        st.markdown(f"**{title}**")
-                                    if section_content:
-                                        st.markdown(section_content)
+                            # content 可能是字符串（LLM 原始响应）或字典（结构化）
+                            if isinstance(content, dict):
+                                sections = content.get("sections", [])
+                                with st.expander(f"📌 {role}", expanded=True):
+                                    for section in sections:
+                                        title = section.get("title", "")
+                                        section_content = section.get("content", "")
+                                        if title:
+                                            st.markdown(f"**{title}**")
+                                        if section_content:
+                                            st.markdown(section_content)
+                            else:
+                                # content 是字符串，直接显示
+                                with st.expander(f"📌 {role}", expanded=True):
+                                    st.markdown(content)
                     else:
                         st.info("👆 请先在右侧选择模板并生成总结")
 

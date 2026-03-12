@@ -1,9 +1,65 @@
 # "Jinni 会议精灵" Web 化架构设计
 
-**版本**: 1.0
-**日期**: 2026-03-11
+**版本**: 1.1
+**日期**: 2026-03-12
 **作者**: 架构组
-**状态**: 设计草案
+**状态**: ✅ MVP 已实现
+
+---
+
+## 已实现架构 (MVP v1.0)
+
+### 实际处理管道
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           已实现 Web 后端 (2026-03-12)                        │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+ 文件上传 ──► FastAPI BackgroundTasks ──► 真实 Python 模块处理
+    │                  │                        │
+    │                  │                        ├──► audio.extract_audio (ffmpeg)
+    │                  │                        │
+    │                  │                        ├──► asr.transcribe (Whisper)
+    │                  │                        │
+    │                  │                        ├──► summarizer.llm.*
+    │                  │                        │    └───► mock/deepseek/openai/glm/anthropic
+    │                  │                        │
+    │                  │                        └──► 数据持久化 (SQLite)
+    │                  │
+    ◄──────────────────┴──────────────────────────┘
+          前端轮询状态更新
+
+核心模块:
+  • web_backend/main.py     - FastAPI 应用入口
+  • web_backend/models.py   - SQLAlchemy ORM 模型
+  • web_backend/app.py      - Streamlit 前端
+```
+
+### 环境依赖
+
+| 组件 | 版本/要求 |
+|------|-----------|
+| Python | 3.12+ |
+| ffmpeg | 系统包 (用于音频提取) |
+| openai-whisper | 20250625+ |
+| torch | 2.10.0+cpu (CPU 版本) |
+
+### 环境变量
+
+```bash
+# Whisper 模型大小
+WHISPER_MODEL=base  # tiny/base/small/medium/large
+
+# LLM Provider
+DEFAULT_LLM_PROVIDER=mock  # mock/deepseek/openai/glm/anthropic
+
+# API Keys (根据选择的 provider)
+ZHIPU_API_KEY=xxx
+OPENAI_API_KEY=xxx
+DEEPSEEK_API_KEY=xxx
+ANTHROPIC_API_KEY=xxx
+```
 
 ---
 
@@ -19,13 +75,13 @@
 
 | 能力 | 状态 | 说明 |
 |------|------|------|
-| ASR 转录 | ✅ | Whisper 本地/云端，支持多种模型 |
+| ASR 转录 | ✅ | Whisper 本地，支持多种模型 |
 | LLM 增强 | ✅ | OpenAI/Anthropic/GLM/DeepSeek |
 | 模板总结 | ✅ | 多角色视角 + 自定义模板 |
 | CLI 接口 | ✅ | 完整命令行工具 |
-| **Web 界面** | ❌ | **待开发** |
-| **任务持久化** | ❌ | **待开发** |
-| **异步处理** | ❌ | **待开发** |
+| **Web 界面** | ✅ | **Streamlit 前端已实现** |
+| **任务持久化** | ✅ | **SQLite + BackgroundTasks** |
+| **异步处理** | ✅ | **FastAPI 异步任务** |
 
 ### 1.2 演进目标
 

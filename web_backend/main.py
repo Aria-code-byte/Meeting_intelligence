@@ -5,7 +5,8 @@ Jinni 会议精灵 - FastAPI 后端服务器
 1. FastAPI 提供高性能异步 REST API
 2. BackgroundTasks 处理长时任务（无需 Redis）
 3. SQLAlchemy ORM 管理数据库
-4. subprocess 调用 C++ 核心引擎
+4. Whisper ASR 语音转文字
+5. 多种 LLM Provider 支持（Mock/DeepSeek/OpenAI/GLM/Anthropic）
 
 启动方式：
     uvicorn main:app --reload --host 0.0.0.0 --port 8000
@@ -21,6 +22,13 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
 
+# 加载 .env 文件
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass  # 如果没有 python-dotenv，跳过环境变量加载
+
 from fastapi import (
     FastAPI,
     UploadFile,
@@ -29,6 +37,7 @@ from fastapi import (
     HTTPException,
     BackgroundTasks,
     Depends,
+    Query,
 )
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -37,6 +46,16 @@ from sqlalchemy import create_engine, or_
 from sqlalchemy.orm import Session, sessionmaker
 
 from models import Base, Meeting, Result, Template, Summary
+
+# ============================================================
+# 导入真实 ASR 和 Summarizer 模块
+# ============================================================
+import sys
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from audio.extract_audio import extract_audio
+from asr.transcribe import transcribe as asr_transcribe
+from summarizer.llm.base import LLMMessage
 
 # ============================================================
 # 配置与初始化
@@ -69,7 +88,7 @@ Base.metadata.create_all(bind=engine)
 # FastAPI 应用初始化
 app = FastAPI(
     title="Jinni 会议精灵 API",
-    description="基于 C++ 核心引擎与 DeepSeek LLM 的智能会议处理平台",
+    description="基于 Whisper ASR 与多种 LLM 的智能会议处理平台",
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
@@ -145,91 +164,457 @@ class MeetingDetailResponse(MeetingResponse):
 
 
 # ============================================================
-# C++ 核心引擎调用（底层高性能处理）
+# LLM Provider 创建（参考 meeting_intelligence/cli.py）
 # ============================================================
 
-async def call_cpp_engine(video_path: str, output_dir: str) -> dict:
+def create_llm_provider(provider_name: str = "mock"):
     """
-    🔥 底层 C++ 高性能引擎调用 🔥
-    ===============================
-    调用 C++ 编写的 jinni_engine 执行：
-    1. FFmpeg 音频提取（C++ 直接调用 libav）
-    2. Whisper 浮点量化推理（C++ 实现，比 Python 快 3-5 倍）
-    3. DeepSeek LLM API 调用（C++ libcurl，连接池复用）
-    4. 多模板并行总结（C++ 线程池）
+    创建 LLM Provider
 
     Args:
-        video_path: 输入视频文件路径
-        output_dir: 输出目录（JSON 结果文件）
+        provider_name: LLM 提供商名称
 
     Returns:
-        dict: C++ 引擎输出的处理结果
-        {
-            "transcript_raw": "原始转录文本",
-            "transcript_enhanced": "增强转录文本",
-            "summaries": [
-                {"role": "产品经理", "content": "..."},
-                {"role": "开发者", "content": "..."}
-            ],
-            "metadata": {
-                "duration": 1800.5,
-                "word_count": 5000,
-                "processing_time": 45.2,
-                "llm_provider": "deepseek",
-                "llm_model": "deepseek-chat"
+        LLM Provider 实例
+
+    Raises:
+        RuntimeError: API Key 未设置
+        ValueError: 不支持的 provider
+    """
+    if provider_name == "mock":
+        from summarizer.llm.mock import MockLLMProvider
+        return MockLLMProvider()
+    elif provider_name == "glm":
+        from summarizer.llm.glm import GLMProvider
+        api_key = os.environ.get("ZHIPU_API_KEY")
+        if not api_key:
+            raise RuntimeError("未设置 ZHIPU_API_KEY 环境变量")
+        return GLMProvider(api_key=api_key, model="glm-4-flash")
+    elif provider_name == "openai":
+        from summarizer.llm.openai import OpenAIProvider
+        api_key = os.environ.get("OPENAI_API_KEY")
+        if not api_key:
+            raise RuntimeError("未设置 OPENAI_API_KEY 环境变量")
+        return OpenAIProvider(api_key=api_key, model="gpt-4o-mini")
+    elif provider_name == "deepseek":
+        from summarizer.llm.deepseek import DeepSeekProvider
+        api_key = os.environ.get("DEEPSEEK_API_KEY")
+        if not api_key:
+            raise RuntimeError("未设置 DEEPSEEK_API_KEY 环境变量")
+        return DeepSeekProvider(api_key=api_key, model="deepseek-chat")
+    elif provider_name == "anthropic":
+        from summarizer.llm.anthropic import AnthropicProvider
+        api_key = os.environ.get("ANTHROPIC_API_KEY")
+        if not api_key:
+            raise RuntimeError("未设置 ANTHROPIC_API_KEY 环境变量")
+        return AnthropicProvider(api_key=api_key, model="claude-3-5-sonnet-20241022")
+    else:
+        raise ValueError(f"不支持的 provider: {provider_name}")
+
+
+def _get_template_by_name(template_name: str):
+    """
+    从数据库获取模板或返回默认模板
+
+    Args:
+        template_name: 模板名称
+
+    Returns:
+        Template 对象或默认模板
+    """
+    db = SessionLocal()
+    try:
+        template = db.query(Template).filter(Template.name == template_name).first()
+        if template:
+            return template
+        # 返回默认模板
+        from dataclasses import dataclass
+
+        @dataclass
+        class DefaultTemplate:
+            name: str = "通用总结"
+            description: str = "请提供会议的全面总结，包括主要议题、讨论要点和后续行动计划。"
+
+        return DefaultTemplate()
+    finally:
+        db.close()
+
+
+# ============================================================
+# 真实会议处理模块（参考 CLI 流程，优化版）
+# ============================================================
+# 全局缓存：Whisper 模型（避免重复加载）
+_whisper_model_cache = {}
+_whisper_model_lock = asyncio.Lock()
+
+
+def _extract_audio_sync(video_path: str):
+    """同步音频提取（在线程池中运行）"""
+    return extract_audio(video_path)
+
+
+def _transcribe_sync(audio_path: str, model_size: str):
+    """标准 ASR 转写（回退方案，使用原始 asr.transcribe）"""
+    return asr_transcribe(
+        audio_path,
+        language="auto",
+        model_size=model_size
+    )
+
+
+def _transcribe_fast_sync(audio_path: str, model_size: str):
+    """
+    快速 ASR 转写（优化版，直接调用 Whisper，跳过文件 I/O）
+
+    优化点：
+    1. 直接使用 Whisper，跳过中间 JSON 文件保存
+    2. 复用已加载的模型（全局缓存）
+    3. 跳过后处理（可选）
+    """
+    import whisper
+    import wave
+    import os
+    from asr.types import Utterance
+    from audio.extract_audio import _get_audio_duration
+
+    # 验证音频文件
+    if not os.path.exists(audio_path):
+        raise RuntimeError(f"音频文件不存在: {audio_path}")
+
+    # 检查文件大小
+    file_size = os.path.getsize(audio_path)
+    if file_size < 1000:  # 小于 1KB，可能是空文件
+        raise RuntimeError(f"音频文件太小或为空: {audio_path} ({file_size} bytes)")
+
+    # 获取时长并验证
+    duration = _get_audio_duration(audio_path)
+    if duration < 0.5:  # 小于 0.5 秒
+        raise RuntimeError(f"音频时长太短，无法转写: {duration:.2f}秒 (至少需要 0.5 秒)")
+
+    # 使用缓存的模型（如果存在）
+    model_key = f"whisper_{model_size}"
+
+    # 检查是否已缓存（在同步上下文中）
+    if model_key in _whisper_model_cache:
+        model = _whisper_model_cache[model_key]
+    else:
+        # 加载新模型
+        model = whisper.load_model(model_size)
+        _whisper_model_cache[model_key] = model
+
+    # 语言参数处理：指定中文或英文，避免误检测
+    # 检测语言：如果是中文环境，优先使用中文
+    import locale
+    system_lang = locale.getdefaultlocale()[0] or ''
+    if 'zh' in system_lang or 'CN' in system_lang:
+        language_arg = 'zh'  # 强制使用中文
+    else:
+        language_arg = None  # 自动检测
+
+    # 转写（使用更稳定的参数）
+    try:
+        result = model.transcribe(
+            audio_path,
+            language=language_arg,
+            word_timestamps=False,
+            verbose=False,
+            # 添加以下参数提高稳定性
+            fp16=False,  # 使用 FP32 避免 FP16 精度问题
+            compression_ratio_threshold=2.4,  # 过滤重复内容
+            no_speech_threshold=0.6,  # 过滤静音
+            condition_on_previous_text=True,  # 基于前文预测
+        )
+    except RuntimeError as e:
+        if "reshape" in str(e) or "0 elements" in str(e):
+            # 长音频末尾分块问题：使用标准方法
+            raise RuntimeError(f"音频格式兼容问题，请使用标准转写: {e}")
+        raise
+
+    # 转换为 Utterance 格式
+    utterances = []
+    for segment in result.get("segments", []):
+        text = segment["text"].strip()
+        if text:
+            utterances.append(Utterance(
+                start=segment["start"],
+                end=segment["end"],
+                text=text
+            ))
+
+    # 构建结果（模仿 TranscriptionResult）
+    from dataclasses import dataclass
+    from datetime import datetime
+
+    @dataclass
+    class FastTranscriptionResult:
+        utterances: list
+        duration: float
+        audio_path: str
+        asr_provider: str
+        timestamp: str
+
+    return FastTranscriptionResult(
+        utterances=utterances,
+        duration=duration,
+        audio_path=audio_path,
+        asr_provider=f"whisper-{model_size}",
+        timestamp=datetime.now().isoformat()
+    )
+
+
+def _llm_generate_sync(llm, messages, temperature, max_tokens):
+    """同步 LLM 生成（在线程池中运行）"""
+    return llm.generate_with_retry(messages=messages, temperature=temperature, max_tokens=max_tokens)
+
+
+def _create_time_blocks(utterances: list, block_duration_minutes: int = 3) -> list:
+    """
+    将 utterances 按时间跨度聚合为时间块
+
+    Args:
+        utterances: 原始 utterance 列表（Utterance 对象）
+        block_duration_minutes: 每块的时长（分钟）
+
+    Returns:
+        时间块列表
+    """
+    if not utterances:
+        return []
+
+    block_duration_ms = block_duration_minutes * 60 * 1000
+    blocks = []
+
+    current_block = {
+        "start_ms": int(utterances[0].start * 1000),
+        "end_ms": int(utterances[0].end * 1000),
+        "text": "",
+    }
+
+    for u in utterances:
+        u_start_ms = int(u.start * 1000)
+        u_end_ms = int(u.end * 1000)
+
+        # 检查是否应该开始新块
+        if u_start_ms >= current_block["start_ms"] + block_duration_ms and current_block["text"]:
+            # 保存当前块
+            blocks.append({
+                "start_ms": current_block["start_ms"],
+                "end_ms": current_block["end_ms"],
+                "text": current_block["text"].strip()
+            })
+            # 开始新块
+            current_block = {
+                "start_ms": u_start_ms,
+                "end_ms": u_end_ms,
+                "text": "",
             }
+
+        current_block["end_ms"] = max(current_block["end_ms"], u_end_ms)
+        current_block["text"] += " " + u.text
+
+    # 添加最后一个块
+    if current_block["text"].strip():
+        blocks.append({
+            "start_ms": current_block["start_ms"],
+            "end_ms": current_block["end_ms"],
+            "text": current_block["text"].strip()
+        })
+
+    return blocks
+
+
+def _ms_to_mmss(ms: int) -> str:
+    """将毫秒转换为 MM:SS 格式"""
+    seconds = ms // 1000
+    mm = seconds // 60
+    ss = seconds % 60
+    return f"{mm:02d}:{ss:02d}"
+
+
+async def _create_enhanced_transcript(utterances: list, llm, base_name: str) -> str:
+    """
+    创建 LLM 增强的转录文本（带时间戳的纯净实录）
+
+    Args:
+        utterances: Whisper 识别的 utterances 列表
+        llm: LLM Provider 实例
+        base_name: 基础名称（用于缓存）
+
+    Returns:
+        增强后的转录文本
+    """
+    from template.recorder import get_recorder_prompts
+
+    # 创建时间块（每3分钟一块）
+    time_blocks = _create_time_blocks(utterances, block_duration_minutes=3)
+    print(f"[进程] 创建了 {len(time_blocks)} 个时间块")
+
+    refined_lines = []
+
+    # 处理时间块（添加请求间隔，避免速率限制）
+    REQUEST_DELAY = 2  # 秒
+
+    for i, block in enumerate(time_blocks):
+        start_time = _ms_to_mmss(block["start_ms"])
+        end_time = _ms_to_mmss(block["end_ms"])
+
+        print(f"[进程] 处理块 {i+1}/{len(time_blocks)}: [{start_time} - {end_time}]")
+
+        # 获取提示词
+        prompts = get_recorder_prompts(block["text"])
+
+        messages = [
+            LLMMessage(role="system", content=prompts["system_prompt"]),
+            LLMMessage(role="user", content=prompts["user_prompt"])
+        ]
+
+        # 调用 LLM
+        try:
+            response = await asyncio.to_thread(_llm_generate_sync, llm, messages, 0.3, 2000)
+            refined_text = response.content if hasattr(response, 'content') else str(response)
+        except Exception as e:
+            print(f"[进程] 块 {i+1} 处理失败，使用原文: {e}")
+            refined_text = block["text"]
+
+        # 清洗文本
+        import re
+        refined_text = refined_text.strip()
+        refined_text = re.sub(r'\n{3,}', '\n\n', refined_text)
+
+        # 添加时间戳
+        refined_line = f"[{start_time} - {end_time}] {refined_text}"
+        refined_lines.append(refined_line)
+
+        # 请求之间延迟（最后一个块不需要）
+        if i < len(time_blocks) - 1:
+            await asyncio.sleep(REQUEST_DELAY)
+
+    return "\n\n".join(refined_lines)
+
+
+async def process_meeting_real(video_path: str, template_name: str = "general") -> dict:
+    """
+    使用真实模块处理会议视频（参考 CLI 流程，优化版）
+
+    处理流程：
+    1. 提取音频（如果是视频文件）
+    2. ASR 转写- 使用缓存的模型，跳过文件 I/O
+    3. 构建原始文字稿
+    4. 使用 LLM 生成总结
+
+    优化点：
+    - Whisper 模型全局缓存，避免重复加载
+    - 跳过中间 JSON 文件保存
+    - 直接调用 Whisper API
+
+    Args:
+        video_path: 视频文件路径
+        template_name: 模板名称
+
+    Returns:
+        dict: 处理结果
+        {
+            "transcript_raw": "原始文字稿",
+            "transcript_enhanced": "增强文字稿",
+            "summaries": [{"role": "产品经理", "content": "..."}],
+            "metadata": {"duration": 180.5, "word_count": 5000, ...}
         }
 
     Raises:
-        RuntimeError: C++ 引擎执行失败
+        FileNotFoundError: 文件不存在
+        RuntimeError: 处理失败
     """
-    output_file = Path(output_dir) / f"result_{uuid.uuid4().hex[:8]}.json"
+    import time
+    start_time = time.time()
 
-    # 构建命令：C++ 引擎接收视频路径和输出文件路径
-    cmd = [
-        str(CPP_ENGINE_PATH),
-        "--input", video_path,
-        "--output", str(output_file),
-        "--llm", "deepseek",  # 使用 DeepSeek API（高性价比）
-        "--templates", "auto",  # 自动应用所有模板
-    ]
+    # 阶段 1: 提取音频（参考 CLI 第 409-417 行）
+    path = Path(video_path)
+    ext = path.suffix.lower()
 
-    try:
-        # ⚡ 异步执行 C++ 程序（不阻塞事件循环）
-        process = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
+    if ext in ['.mp4', '.mkv', '.mov']:
+        print(f"[进程] 正在从视频提取音频: {path.name}")
+        audio_result = await asyncio.to_thread(_extract_audio_sync, video_path)
+        audio_path = audio_result.path
+        duration = audio_result.duration
+        print(f"[进程] 音频提取完成，时长: {duration:.1f}秒")
+    else:
+        audio_path = video_path
+        # 对于音频文件，获取时长
+        from audio.extract_audio import _get_audio_duration
+        duration = _get_audio_duration(audio_path)
 
-        # 等待 C++ 引擎完成（实时输出进度信息）
-        stdout, stderr = await process.communicate()
+    # 阶段 2: ASR 转写（使用优化的快速转写函数）
+    model_size = os.environ.get("WHISPER_MODEL", "base")
+    print(f"[进程] 正在加载 Whisper 模型 ({model_size}) 并转写...")
 
-        if process.returncode != 0:
-            error_msg = stderr.decode("utf-8", errors="ignore")
-            raise RuntimeError(f"C++ 引擎执行失败: {error_msg}")
+    # 检查音频时长，长音频使用标准方法（更稳定）
+    if duration and duration > 1800:  # 超过 30 分钟
+        print(f"[进程] 检测到长音频 ({duration/60:.1f}分钟)，使用标准转写方法")
+        transcript_result = await asyncio.to_thread(_transcribe_sync, audio_path, model_size)
+    else:
+        try:
+            transcript_result = await asyncio.to_thread(_transcribe_fast_sync, audio_path, model_size)
+        except Exception as e:
+            print(f"[进程] 快速转写失败: {e}")
+            print(f"[进程] 回退到标准转写方法...")
+            # 回退到原始方法（可能有更好的兼容性）
+            transcript_result = await asyncio.to_thread(_transcribe_sync, audio_path, model_size)
 
-        # 读取 C++ 引擎输出的 JSON 结果文件
-        if not output_file.exists():
-            raise RuntimeError("C++ 引擎未生成输出文件")
+    # 构建原始文字稿（参考 CLI 第 452-455 行）
+    utterances = transcript_result.utterances
+    print(f"[进程] ASR 转写完成，识别到 {len(utterances)} 条语句")
 
-        with open(output_file, "r", encoding="utf-8") as f:
-            result = json.load(f)
+    transcript_raw = "\n".join([
+        f"[{u.start:.1f}s - {u.end:.1f}s] {u.text}"
+        for u in utterances
+    ])
 
-        # 清理临时文件（可选，竞赛环境可保留用于调试）
-        # output_file.unlink()
+    # 创建 LLM 增强文字稿
+    print(f"[进程] 正在生成 LLM 增强文字稿...")
+    llm = create_llm_provider(os.environ.get("DEFAULT_LLM_PROVIDER", "mock"))
+    base_name = path.stem  # 视频文件名（不含扩展名）
+    transcript_enhanced = await _create_enhanced_transcript(utterances, llm, base_name)
 
-        return result
+    # 阶段 3: 获取模板并生成总结
+    template = _get_template_by_name(template_name)
 
-    except FileNotFoundError:
-        raise RuntimeError(
-            f"❌ C++ 核心引擎未找到: {CPP_ENGINE_PATH}\n"
-            f"请确保已编译 jinni_engine 并放置在 {CPP_ENGINE_PATH} 目录下"
-        )
-    except json.JSONDecodeError as e:
-        raise RuntimeError(f"C++ 引擎输出 JSON 格式错误: {e}")
-    except Exception as e:
-        raise RuntimeError(f"C++ 引擎调用异常: {str(e)}")
+    llm_provider_name = getattr(llm, 'name', 'unknown')
+    llm_model_name = getattr(llm, 'model', 'unknown')
+    print(f"[进程] 正在生成总结 (LLM: {llm_provider_name}/{llm_model_name})...")
+
+    # 构建 Prompt（参考 CLI 第 543-548 行）
+    prompt = (
+        f"你是一名专业会议分析助手。请从【{template.name}】的视角总结以下会议内容。\n"
+        f"总结要求：{template.description}。\n"
+        f"请使用结构化方式输出。\n\n"
+        f"会议内容：\n{transcript_raw}"
+    )
+
+    # 调用 LLM
+    messages = [LLMMessage(role="user", content=prompt)]
+    response = await asyncio.to_thread(_llm_generate_sync, llm, messages, 0.3, 4000)
+
+    # 返回结果
+    processing_time = time.time() - start_time
+    print(f"[进程] 处理完成！总耗时: {processing_time:.1f}秒")
+
+    return {
+        "transcript_raw": transcript_raw,
+        "transcript_enhanced": transcript_enhanced,  # LLM 增强后的文字稿
+        "summaries": [
+            {
+                "role": template.name,
+                "content": response.content if hasattr(response, 'content') else str(response)
+            }
+        ],
+        "metadata": {
+            "duration": transcript_result.duration,
+            "word_count": sum(len(u.text.split()) for u in utterances),
+            "processing_time": processing_time,
+            "llm_provider": str(llm_provider_name),
+            "llm_model": str(llm_model_name)
+        }
+    }
 
 
 # ============================================================
@@ -242,11 +627,11 @@ async def process_meeting_task(
     db: Session
 ):
     """
-    异步会议处理任务
-    ================
+    异步会议处理任务（使用真实 ASR 和 LLM 模块）
+    =================================================
     流程：
     1. 更新状态为 processing
-    2. 调用 C++ 核心引擎处理视频
+    2. 调用真实模块处理视频（ASR + LLM）
     3. 解析结果并存储到数据库
     4. 更新状态为 completed/failed
 
@@ -260,41 +645,49 @@ async def process_meeting_task(
         return
 
     try:
+        print(f"\n{'='*60}")
+        print(f"🎬 开始处理会议 #{meeting_id}: {meeting.title}")
+        print(f"📁 文件: {video_path}")
+        print(f"{'='*60}")
+
         # 更新状态：处理中
         meeting.status = "processing"
+        meeting.progress = 5
+        db.commit()
+
+        # 🚀 调用真实模块处理（带进度更新）
         meeting.progress = 10
         db.commit()
 
-        # 🚀 调用 C++ 核心引擎（底层高性能处理）
-        meeting.progress = 30
-        db.commit()
-
-        cpp_result = await call_cpp_engine(
+        result_data = await process_meeting_real(
             video_path=video_path,
-            output_dir=str(TRANSCRIPT_DIR)
+            template_name="general"  # 使用默认模板
         )
 
-        meeting.progress = 80
+        meeting.progress = 90
         db.commit()
 
-        # 解析 C++ 引擎输出并存储结果
+        # 解析结果并存储
         result = Result(
             meeting_id=meeting_id,
-            transcript_raw=cpp_result.get("transcript_raw", ""),
-            transcript_enhanced=cpp_result.get("transcript_enhanced"),
-            summary_json={"templates": cpp_result.get("summaries", [])},
-            llm_provider=cpp_result.get("metadata", {}).get("llm_provider"),
-            llm_model=cpp_result.get("metadata", {}).get("llm_model"),
-            processing_time=cpp_result.get("metadata", {}).get("processing_time"),
-            word_count=cpp_result.get("metadata", {}).get("word_count"),
+            transcript_raw=result_data.get("transcript_raw", ""),
+            transcript_enhanced=result_data.get("transcript_enhanced"),
+            summary_json={"templates": result_data.get("summaries", [])},
+            llm_provider=result_data.get("metadata", {}).get("llm_provider"),
+            llm_model=result_data.get("metadata", {}).get("llm_model"),
+            processing_time=result_data.get("metadata", {}).get("processing_time"),
+            word_count=result_data.get("metadata", {}).get("word_count"),
         )
         db.add(result)
 
         # 更新会议元数据
-        meeting.duration = cpp_result.get("metadata", {}).get("duration")
+        meeting.duration = result_data.get("metadata", {}).get("duration")
         meeting.status = "completed"
         meeting.progress = 100
         db.commit()
+
+        print(f"✅ 会议 #{meeting_id} 处理完成！")
+        print(f"{'='*60}\n")
 
     except Exception as e:
         # 处理失败
@@ -303,6 +696,8 @@ async def process_meeting_task(
         meeting.progress = 0
         db.commit()
         print(f"❌ 会议处理失败 (ID: {meeting_id}): {e}")
+        import traceback
+        traceback.print_exc()
 
 
 # ============================================================
@@ -324,10 +719,31 @@ async def root():
 @app.get("/health", tags=["健康检查"])
 async def health_check():
     """健康检查端点"""
+    # 检查依赖
+    ffmpeg_available = False
+    try:
+        from audio.extract_audio import is_ffmpeg_available
+        ffmpeg_available = is_ffmpeg_available()
+    except Exception:
+        pass
+
+    whisper_available = False
+    try:
+        import whisper
+        whisper_available = True
+    except ImportError:
+        pass
+
+    llm_provider = os.environ.get("DEFAULT_LLM_PROVIDER", "mock")
+
     return {
         "status": "healthy",
         "timestamp": datetime.utcnow().isoformat(),
-        "cpp_engine_exists": CPP_ENGINE_PATH.exists(),
+        "modules": {
+            "ffmpeg": "available" if ffmpeg_available else "not available",
+            "whisper": "available" if whisper_available else "not available",
+            "llm_provider": llm_provider
+        }
     }
 
 
@@ -704,12 +1120,12 @@ async def transcribe_meeting(
 @app.post("/api/meetings/{meeting_id}/summarize", tags=["会议管理"])
 async def summarize_meeting(
     meeting_id: int,
-    template_id: int,
+    template_id: int = Query(..., description="模板 ID"),
     db: Session = Depends(get_db),
 ):
     """
-    基于模板生成会议总结
-    ====================
+    基于模板生成会议总结（使用真实 LLM）
+    =====================================
     Args:
         meeting_id: 会议 ID
         template_id: 模板 ID
@@ -733,22 +1149,50 @@ async def summarize_meeting(
     result = meeting.results[0]
     transcript_text = result.transcript_raw
 
-    # TODO: 调用 LLM 生成总结
-    # 这里暂时返回模拟数据
-    summary_content = f"""# {meeting.title} - {template.name}
+    try:
+        # 创建 LLM Provider
+        llm = create_llm_provider(os.environ.get("DEFAULT_LLM_PROVIDER", "mock"))
 
-## 概述
-（基于模板「{template.name}」生成的总结）
+        # 构建 Prompt
+        prompt = (
+            f"你是一名专业会议分析助手。请从【{template.name}】的视角总结以下会议内容。\n"
+            f"总结要求：{template.description}。\n"
+            f"请使用结构化方式输出。\n\n"
+            f"会议内容：\n{transcript_text}"
+        )
 
-## 详细内容
-{transcript_text[:500]}...
-"""
+        # 调用 LLM（使用 asyncio.to_thread 避免阻塞）
+        messages = [LLMMessage(role="user", content=prompt)]
+        response = await asyncio.to_thread(_llm_generate_sync, llm, messages, 0.3, 4000)
 
-    return {
-        "meeting_id": meeting_id,
-        "template_id": template_id,
-        "summary": summary_content,
-    }
+        summary_content = response.content if hasattr(response, 'content') else str(response)
+
+        # 获取 LLM provider 信息
+        llm_provider_name = str(getattr(llm, 'name', 'unknown'))
+        llm_model_name = str(getattr(llm, 'model', 'unknown'))
+
+        # 保存总结到数据库
+        summary = Summary(
+            meeting_id=meeting_id,
+            template_id=template_id,
+            content=summary_content,
+            llm_provider=llm_provider_name,
+            llm_model=llm_model_name,
+        )
+        db.add(summary)
+        db.commit()
+
+        return {
+            "meeting_id": meeting_id,
+            "template_id": template_id,
+            "summary_id": summary.id,
+            "summary": summary_content,
+            "llm_provider": llm_provider_name,
+            "llm_model": llm_model_name,
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"LLM 生成失败: {str(e)}")
 
 
 # ============================================================
@@ -758,15 +1202,19 @@ async def summarize_meeting(
 if __name__ == "__main__":
     import uvicorn
 
-    print("""
+    llm_provider = os.environ.get("DEFAULT_LLM_PROVIDER", "mock")
+    whisper_model = os.environ.get("WHISPER_MODEL", "base")
+
+    print(f"""
     ╔════════════════════════════════════════════════════════════╗
     ║           🧞 Jinni 会议精灵 - Web 后端服务                   ║
     ╠════════════════════════════════════════════════════════════╣
     ║  API 文档: http://localhost:8000/docs                        ║
     ║  ReDoc:   http://localhost:8000/redoc                        ║
     ║                                                               ║
-    ║  🚀 底层 C++ 引擎: 提供高性能音视频处理                       ║
-    ║  🤖 DeepSeek LLM: 高性价比智能总结                           ║
+    ║  🔧 ASR 模块: Whisper ({whisper_model}) + 模型缓存             ║
+    ║  🤖 LLM Provider: {llm_provider:<12}                           ║
+    ║  ⚡ 优化: 跳过文件 I/O，直接内存处理                          ║
     ╚════════════════════════════════════════════════════════════╝
     """)
 
