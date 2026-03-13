@@ -11,6 +11,7 @@ from datetime import datetime
 
 from asr.types import TranscriptionResult, Utterance
 from asr.providers.whisper import WhisperProvider
+from asr.providers.faster_whisper import FasterWhisperProvider
 
 
 # 数据存储目录
@@ -99,7 +100,7 @@ def transcribe(
 
     Args:
         audio_path: 音频文件路径（WAV, 16kHz, mono）
-        provider: ASR 提供商名称（None 表示使用默认 Whisper）
+        provider: ASR 提供商名称（None/whisper=faster-whisper, whisper-legacy=原生实现）
         language: 语言代码（"auto" 自动检测，"zh" 中文，"en" 英文）
         model_size: Whisper 模型大小（tiny, base, small, medium, large）
         auto_build_transcript: 是否自动构建原始会议文档（默认 False）
@@ -123,9 +124,17 @@ def transcribe(
     from audio.extract_audio import _get_audio_duration
     duration = _get_audio_duration(audio_path)
 
-    # 选择提供商
+    # 选择提供商（默认使用 faster-whisper）
     if provider is None or provider == "whisper":
+        try:
+            asr_provider = FasterWhisperProvider(model_size=model_size)
+        except RuntimeError:
+            # faster-whisper 不可用时回退到原生实现
+            asr_provider = WhisperProvider(model_size=model_size)
+    elif provider == "whisper-legacy":
         asr_provider = WhisperProvider(model_size=model_size)
+    elif provider == "faster-whisper":
+        asr_provider = FasterWhisperProvider(model_size=model_size)
     else:
         raise ValueError(f"不支持的 ASR 提供商: {provider}")
 
