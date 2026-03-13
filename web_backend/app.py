@@ -736,7 +736,16 @@ def page_main():
 
             with tab_transcript:
                 if result:
-                    transcript_text = result.get("transcript_raw", "暂无内容")
+                    # 优先显示经过 LLM 处理的分段文字稿（带时间索引）
+                    # 如果没有，则显示原始转录作为后备
+                    transcript_text = result.get("transcript_enhanced") or result.get("transcript_raw", "暂无内容")
+
+                    # 添加说明标签
+                    if result.get("transcript_enhanced"):
+                        st.caption("✨ 已通过 LLM 优化，按时间段分段整理")
+                    else:
+                        st.caption("📝 原始转录（Whisper 直接输出）")
+
                     st.markdown('<div class="markdown-preview" style="max-height: 400px;">', unsafe_allow_html=True)
                     st.markdown(transcript_text)
                     st.markdown('</div>', unsafe_allow_html=True)
@@ -848,22 +857,31 @@ def page_library():
         col_left, col_right = st.columns([1, 1])
 
         with col_left:
-            st.markdown("#### 📝 原始文字稿")
+            st.markdown("#### 📝 智能文字稿")
 
             if meeting.get("results"):
                 result = api_get(f"/api/results/{meeting['results'][0]['id']}")
                 if result:
+                    # 优先显示经过 LLM 处理的分段文字稿
+                    transcript_text = result.get("transcript_enhanced") or result.get("transcript_raw", "暂无内容")
+
+                    # 添加说明标签
+                    if result.get("transcript_enhanced"):
+                        st.caption("✨ LLM 优化分段版")
+                    else:
+                        st.caption("📝 原始转录")
+
                     st.markdown('<div class="markdown-preview">', unsafe_allow_html=True)
-                    st.markdown(result.get("transcript_raw", "暂无内容")[:500] + "...")
+                    st.markdown(transcript_text[:500] + "...")
                     st.markdown('</div>', unsafe_allow_html=True)
 
                     col1, col2 = st.columns(2)
                     with col1:
-                        copy_to_clipboard(result.get("transcript_raw", ""))
+                        copy_to_clipboard(transcript_text)
                     with col2:
                         st.download_button(
                             "📥 下载",
-                            data=result.get("transcript_raw", ""),
+                            data=transcript_text,
                             file_name=f"{meeting['title']}_文字稿.md",
                             mime="text/markdown"
                         )

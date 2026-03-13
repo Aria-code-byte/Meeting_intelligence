@@ -105,7 +105,7 @@ app.add_middleware(
 
 # 支持的视频格式
 ALLOWED_EXTENSIONS = {".mp4", ".mp3", ".wav", ".m4a", ".m4v", ".avi", ".mov"}
-MAX_FILE_SIZE = 1024 * 1024 * 1024  # 1GB
+MAX_FILE_SIZE = int(1024 * 1024 * 1024 * 2.5)  # 2.5GB
 
 
 # ============================================================

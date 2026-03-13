@@ -92,15 +92,39 @@ class TranscriptionResult:
         if self.duration <= 0:
             raise ValueError(f"音频时长必须大于 0: {self.duration}")
 
-        # 验证时间戳单调性（添加小容差处理浮点精度）
+        # 验证并自动修正时间戳（Whisper 可能在文件末尾检测到静音/噪声）
+        # 策略：自动裁剪超出范围的时间戳，而不是拒绝整个转录结果
         prev_end = -1
         epsilon = 0.001  # 1ms 容差
+        valid_utterances = []
+        skipped_count = 0
+
         for utterance in self.utterances:
-            if utterance.start < prev_end - epsilon:
-                raise ValueError(f"时间戳不单调: utterance.start={utterance.start}, prev_end={prev_end}")
+            # 跳过完全超出音频范围的 utterance
+            if utterance.start >= self.duration:
+                skipped_count += 1
+                continue
+
+            # 自动修正超出范围的 end 时间
+            original_end = utterance.end
             if utterance.end > self.duration:
-                raise ValueError(f"utterance 时间超出音频时长: end={utterance.end}, duration={self.duration}")
+                utterance.end = self.duration
+
+            # 检查时间戳单调性
+            if utterance.start < prev_end - epsilon:
+                # 跳过时间戳倒退的 utterance
+                skipped_count += 1
+                continue
+
+            valid_utterances.append(utterance)
             prev_end = utterance.end
+
+        # 更新 utterances 列表（只保留有效的）
+        self.utterances = valid_utterances
+
+        # 如果跳过了太多 utterance，发出警告（但不失败）
+        if skipped_count > 0 and skipped_count > len(valid_utterances):
+            print(f"警告: 跳过了 {skipped_count} 个超出范围或时间戳异常的 utterance")
 
     def to_dict(self) -> dict:
         """转换为字典格式"""
