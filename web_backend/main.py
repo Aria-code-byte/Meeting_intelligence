@@ -1195,6 +1195,44 @@ async def summarize_meeting(
         raise HTTPException(status_code=500, detail=f"LLM 生成失败: {str(e)}")
 
 
+@app.get("/api/meetings/{meeting_id}/summaries", tags=["会议管理"])
+async def get_meeting_summaries(
+    meeting_id: int,
+    db: Session = Depends(get_db),
+):
+    """
+    获取会议的所有总结
+    ==================
+    Args:
+        meeting_id: 会议 ID
+        db: 数据库会话
+
+    Returns:
+        list: 总结列表（包含模板信息）
+    """
+    meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
+    if not meeting:
+        raise HTTPException(status_code=404, detail="会议不存在")
+
+    # 获取该会议的所有总结，并关联模板信息
+    summaries = db.query(Summary).filter(Summary.meeting_id == meeting_id).order_by(Summary.created_at.desc()).all()
+
+    result = []
+    for summary in summaries:
+        template = db.query(Template).filter(Template.id == summary.template_id).first()
+        result.append({
+            "id": summary.id,
+            "template_id": summary.template_id,
+            "template_name": template.name if template else "未知模板",
+            "content": summary.content,
+            "llm_provider": summary.llm_provider,
+            "llm_model": summary.llm_model,
+            "created_at": summary.created_at.isoformat() if summary.created_at else None,
+        })
+
+    return result
+
+
 # ============================================================
 # 启动入口
 # ============================================================

@@ -765,29 +765,54 @@ def page_main():
 
             with tab_summary:
                 if result:
-                    summary_data = result.get("summary_json", {})
-                    templates_list = summary_data.get("templates", [])
+                    # 从新 API 获取会议的所有总结（从 Summary 表）
+                    summaries = api_get(f"/api/meetings/{meeting['id']}/summaries")
 
-                    if templates_list:
-                        for tmpl in templates_list:
-                            role = tmpl.get("role", "未知角色")
-                            content = tmpl.get("content", "")
+                    if summaries:
+                        # 提取模板名称列表用于下拉菜单
+                        template_names = [s.get("template_name", "未知模板") for s in summaries]
 
-                            # content 可能是字符串（LLM 原始响应）或字典（结构化）
-                            if isinstance(content, dict):
-                                sections = content.get("sections", [])
-                                with st.expander(f"📌 {role}", expanded=True):
-                                    for section in sections:
-                                        title = section.get("title", "")
-                                        section_content = section.get("content", "")
-                                        if title:
-                                            st.markdown(f"**{title}**")
-                                        if section_content:
-                                            st.markdown(section_content)
-                            else:
-                                # content 是字符串，直接显示
-                                with st.expander(f"📌 {role}", expanded=True):
-                                    st.markdown(content)
+                        # 下拉菜单选择模板
+                        col_title, col_select = st.columns([3, 2])
+                        with col_title:
+                            st.markdown("#### 📋 模板总结")
+                        with col_select:
+                            selected_template_name = st.selectbox(
+                                "选择模板查看",
+                                template_names,
+                                label_visibility="collapsed",
+                                key="summary_template_select"
+                            )
+
+                        # 找到选中的总结内容
+                        selected_summary = next(
+                            (s for s in summaries if s.get("template_name") == selected_template_name),
+                            None
+                        )
+
+                        if selected_summary:
+                            content = selected_summary.get("content", "")
+
+                            # 显示模板信息
+                            st.caption(f"✨ 使用模板: **{selected_template_name}**")
+                            if selected_summary.get("created_at"):
+                                st.caption(f"🕒 生成时间: {selected_summary['created_at'][:19]}")
+
+                            # 显示内容
+                            st.markdown(content)
+
+                            # 操作按钮
+                            col_copy, col_download = st.columns(2)
+                            with col_copy:
+                                copy_to_clipboard(content, "📋 复制")
+                            with col_download:
+                                st.download_button(
+                                    "📥 下载",
+                                    data=content,
+                                    file_name=f"{meeting['title']}_{selected_template_name}_总结.md",
+                                    mime="text/markdown",
+                                    use_container_width=True
+                                )
                     else:
                         st.info("👆 请先在右侧选择模板并生成总结")
 
@@ -889,6 +914,36 @@ def page_library():
         with col_right:
             st.markdown("#### 🪄 AI 总结")
 
+            # 从新 API 获取会议的所有总结（从 Summary 表）
+            summaries = api_get(f"/api/meetings/{meeting['id']}/summaries")
+
+            if summaries:
+                # 提取模板名称列表
+                template_names = [s.get("template_name", "未知模板") for s in summaries]
+
+                # 下拉菜单选择已生成的模板总结
+                selected_template_name = st.selectbox(
+                    "📋 查看已生成的模板总结",
+                    template_names,
+                    key=f"lib_summary_select_{meeting['id']}"
+                )
+
+                # 找到选中的总结内容
+                selected_summary = next(
+                    (s for s in summaries if s.get("template_name") == selected_template_name),
+                    None
+                )
+
+                if selected_summary:
+                    content = selected_summary.get("content", "")
+
+                    st.caption(f"✨ **{selected_template_name}**")
+
+                    # 显示预览
+                    st.markdown(content[:500] + ("..." if len(content) > 500 else ""))
+
+            st.markdown("---")
+
             # 重新选择模板生成总结
             templates = api_get("/api/templates")
             if templates:
@@ -896,10 +951,16 @@ def page_library():
             else:
                 template_names = ["通用周报", "技术评审"]
 
-            new_template = st.selectbox("📋 选择新模板重新生成", template_names)
+            new_template = st.selectbox("📋 选择新模板重新生成", template_names, key=f"lib_new_template_{meeting['id']}")
 
-            if st.button("🔄 重新生成总结", use_container_width=True):
-                st.success("✅ 总结生成完成！")
+            if st.button("🔄 重新生成总结", use_container_width=True, key=f"lib_regenerate_{meeting['id']}"):
+                # 获取选中的模板 ID
+                template = next((t for t in templates if t["name"] == new_template), None)
+                if template:
+                    result = api_post(f"/api/meetings/{meeting['id']}/summarize", params={"template_id": template["id"]})
+                    if result:
+                        st.success("✅ 总结生成完成！")
+                        st.rerun()
 
 
 # ============================================================
