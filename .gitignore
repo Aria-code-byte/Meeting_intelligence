@@ -49,6 +49,8 @@ Thumbs.db
 # Logs
 ############################
 *.log
+logs/
+*.pid
 
 ############################
 # Project generated data (per your structure)

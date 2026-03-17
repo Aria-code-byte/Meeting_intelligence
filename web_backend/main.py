@@ -778,6 +778,15 @@ async def upload_meeting(
             detail=f"不支持的文件格式: {file_ext}，请上传 {ALLOWED_EXTENSIONS} 格式"
         )
 
+    # 文件大小验证（在上传前检查）
+    content = await file.read()
+    file_size = len(content)
+    if file_size > MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=413,
+            detail=f"文件大小超过限制 ({MAX_FILE_SIZE / (1024**3):.1f}GB)"
+        )
+
     # 生成唯一文件名（防止冲突）
     unique_filename = f"{uuid.uuid4().hex}{file_ext}"
     video_path = VIDEO_DIR / unique_filename
@@ -785,8 +794,7 @@ async def upload_meeting(
     # 保存文件
     try:
         with open(video_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-        file_size = video_path.stat().st_size
+            buffer.write(content)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"文件保存失败: {str(e)}")
 
