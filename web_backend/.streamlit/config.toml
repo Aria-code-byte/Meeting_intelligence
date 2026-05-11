@@ -1,7 +1,9 @@
 [server]
 maxUploadSize = 3072
 headless = true
-port = 8501
 
 [browser]
 gatherUsageStats = false
+
+[logger]
+level = "info"

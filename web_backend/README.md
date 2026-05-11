@@ -1,281 +1,388 @@
-# 🧞 Jinni 会议精灵 - Web 版
+# Jinni Meeting Elf - Web Backend
 
-> **挑战杯作品** | 基于底层 C++ 引擎与 DeepSeek LLM 的智能会议处理平台
+## 🚀 快速启动
 
-[![Python](https://img.shields.io/badge/Python-3.12+-blue.svg)](https://www.python.org/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-green.svg)](https://fastapi.tiangolo.com/)
-[![Streamlit](https://img.shields.io/badge/Streamlit-1.28+-red.svg)](https://streamlit.io/)
-[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+### 启动主版本（v2.0.0 - 现代AI SaaS分步向导）
+
+```bash
+cd web_backend
+streamlit run app.py --server.port 8501
+```
+
+**访问地址**：http://localhost:8501
 
 ---
 
-## ✨ 特性亮点
+## 🎯 产品定位
 
-- **🚀 底层 C++ 引擎**：Whisper 浮点优化推理，比 Python 快 3-5 倍
-- **🤖 DeepSeek LLM**：高性价比智能增强与多模板总结
-- **🎯 极简操作**：拖拽上传，一键处理，实时进度
-- **💾 本地部署**：SQLite 单文件存储，数据完全掌控
-- **🎨 科技感 UI**：Streamlit 深色渐变主题
+**Jinni 不是普通的会议转录工具。**
 
----
+它的核心能力是：
+> "基于用户自定义模板，从不同业务视角生成高度定制化的 AI 会议总结。"
 
-## 🏗️ 架构设计
+### 核心价值
+- ✅ **AI 模板总结** - 不同业务视角的定制化总结
+- ✅ **分步向导流程** - 清晰的5步工作流
+- ✅ **现代设计体验** - 参考 Notion AI / Linear / Raycast
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     Streamlit 前端                          │
-│  (文件上传 / 进度展示 / 结果渲染 / 历史记录)                 │
-└────────────────────┬────────────────────────────────────────┘
-                     │ HTTP/REST API
-┌────────────────────▼────────────────────────────────────────┐
-│                   FastAPI 后端服务                          │
-│  ┌────────────────┐  ┌────────────────┐  ┌──────────────┐  │
-│  │  文件上传 API  │  │  异步任务调度  │  │  状态轮询 API │  │
-│  └────────┬───────┘  └────────┬───────┘  └──────┬───────┘  │
-│           │                   │                  │          │
-└───────────┼───────────────────┼──────────────────┼──────────┘
-            │                   │                  │
-            ▼                   ▼                  │
-┌───────────────────┐   ┌──────────────┐         │
-│  C++ 核心引擎     │   │   SQLite     │         │
-│  • FFmpeg 音频提取│   │   • meetings │         │
-│  • Whisper 推理   │   │   • results  │         │
-│  • LLM API 调用   │   └──────────────┘         │
-└───────────────────┘                             │
-                                                    │
-                ┌───────────────────────────────────┘
-                ▼
-        ┌──────────────────┐
-        │  DeepSeek API    │
-        │  (高性价比 LLM)  │
-        └──────────────────┘
-```
+### 产品特点
+- 🎨 **AI-Native 设计** - 突出 AI 模板价值
+- 📊 **分步向导** - 自动引导用户完成流程
+- 🚀 **现代交互** - 平滑动画 + 实时反馈
+- 📋 **模板驱动** - 6+ 种预设业务场景模板
 
 ---
 
-## 🚀 快速开始
+## 🏗️ 5步工作流
 
-### 1. 环境要求
+### Step 1: 上传会议文件
+- 现代卡片式上传区
+- 支持拖拽上传
+- 文件格式：MP3, WAV, MP4, M4A, WEBM
+- 最大文件：3GB
 
-- Python 3.12+
-- FFmpeg 4.0+
+### Step 2: 提取会议内容
+- AI Processing Timeline
+- 动态进度展示
+- 自动进入下一步
 
-### 2. 安装依赖
+### Step 3: 选择总结模板（核心页面）
+- 模板卡片网格
+- 输出结构预览
+- 6种预设模板：
+  - 通用会议纪要
+  - 产品需求讨论
+  - 项目评审
+  - 周会总结
+  - 客户沟通
+  - 面试记录
 
-```bash
-# 安装 Python 依赖
-pip install -r requirements.txt
+### Step 4: 生成会议总结
+- AI Generation Timeline
+- 模板信息确认
+- 自动进入结果页
 
-# 安装 FFmpeg
-# Ubuntu/Debian:
-sudo apt-get install ffmpeg
-
-# macOS:
-brew install ffmpeg
-```
-
-### 3. 项目初始化
-
-```bash
-# 一键初始化（创建目录、数据库）
-python init_project.py
-```
-
-### 4. 配置环境变量
-
-```bash
-# 复制环境变量模板
-cp .env.example .env
-
-# 编辑 .env，填入 DeepSeek API Key
-# DEEPSEEK_API_KEY=sk-xxxxx
-```
-
-### 5. 启动服务
-
-```bash
-# 终端 1：启动 FastAPI 后端
-python main.py
-
-# 终端 2：启动 Streamlit 前端
-streamlit run app.py
-```
-
-### 6. 访问应用
-
-- **前端界面**: http://localhost:8501
-- **API 文档**: http://localhost:8000/docs
+### Step 5: 查看结果
+- **AI 总结**（默认 Tab，第一优先级）
+- **完整文字稿**（辅助 Tab）
+- 下载与复制功能
 
 ---
 
-## 📂 项目结构
+## 🎨 设计系统
+
+### 参考产品
+- Notion AI
+- Linear
+- Raycast
+- Vercel Dashboard
+
+### 色彩系统
+```css
+/* 品牌色 */
+--primary: #002FA7;  /* 克莱因蓝 */
+--primary-gradient: linear-gradient(135deg, #002FA7 0%, #0039CC 100%);
+
+/* 背景 */
+--bg-body: linear-gradient(135deg, #FAFBFD 0%, #F5F7FA 100%);
+--bg-card: #FFFFFF;
+
+/* 文字 */
+--text-primary: #1A1A1A;
+--text-secondary: #6B7280;
+```
+
+### 组件特点
+- 卡片：16-20px 圆角 + 柔和阴影
+- 按钮：12px 圆角 + Hover 动效
+- 步骤条：连接线 + 状态指示
+- 进度条：渐变 + Shimmer 动效
+
+---
+
+## 🔧 技术栈
+
+### 前端
+- **Streamlit** - Python Web 框架
+- **HTML/CSS** - 自定义样式系统
+- **JavaScript** - 交互增强
+
+### 后端
+- **FastAPI** - API 服务
+- **Whisper** - ASR 转录
+- **LLM** - AI 总结（OpenAI/Anthropic/DeepSeek）
+
+### 依赖安装
+```bash
+pip install streamlit requests streamlit-option-menu
+```
+
+---
+
+## 📁 文件说明
 
 ```
 web_backend/
-├── main.py              # FastAPI 后端服务
-├── app.py               # Streamlit 前端界面
-├── models.py            # SQLAlchemy 数据模型
-├── init_project.py      # 项目初始化脚本
-├── requirements.txt     # Python 依赖
-├── README.md            # 本文件
-│
-├── core/                # C++ 核心引擎
-│   ├── jinni_engine     # C++ 编译的可执行文件
-│   ├── jinni_engine.py  # Python 模拟版（开发测试）
-│   └── README.md        # C++ 引擎编译说明
-│
-└── storage/             # 数据存储目录
-    ├── videos/          # 上传的视频文件
-    ├── db/              # SQLite 数据库
-    ├── transcripts/     # 转录结果缓存
-    └── cache/           # 临时缓存
+├── app.py                 # ⭐ 主应用（v2.0.0）
+├── app_old.py            # 旧版本备份（v1.x）
+├── VERSION_CHANGELOG.md  # 版本更新日志
+├── requirements.txt      # Python 依赖
+└── .streamlit/
+    └── config.toml       # Streamlit 配置
 ```
 
 ---
 
-## 🔧 C++ 核心引擎
+## 🔄 版本历史
 
-### 编译说明
+### v2.0.0 (当前版本) - 2026-05-11
+**重大更新**：
+- ✅ 彻底重构产品定位
+- ✅ 分步向导工作流
+- ✅ 现代设计系统
+- ✅ AI 总结优先展示
+- ✅ 模板卡片网格
 
-详见 `core/README.md`
+详细变更：查看 [VERSION_CHANGELOG.md](./VERSION_CHANGELOG.md)
+
+### v1.x (旧版本)
+- 传统后台管理风格
+- 左右布局配置流程
+- transcript 优先展示
+
+---
+
+## 🚦 使用说明
+
+### 第一次使用？
+
+1. **启动服务**
+   ```bash
+   streamlit run app.py --server.port 8501
+   ```
+
+2. **访问应用**
+   ```
+   http://localhost:8501
+   ```
+
+3. **按照5步向导操作**
+   - 上传会议文件
+   - 等待内容提取
+   - 选择总结模板
+   - 等待 AI 生成
+   - 查看结果
+
+### 想要旧版本？
 
 ```bash
-cd core
-g++ -std=c++17 -O3 \
-    -I/usr/include/ffmpeg \
-    -lavformat -lavcodec -lavutil -lswresample \
-    -lcurl \
-    jinni_engine.cpp \
-    -o jinni_engine
+streamlit run app_old.py --server.port 8503
 ```
 
-### Python 调用
+访问：http://localhost:8503
 
-```python
-# 后端通过 subprocess 调用
-subprocess.run([
-    "./core/jinni_engine",
-    "--input", "video.mp4",
-    "--output", "result.json",
-    "--llm", "deepseek"
-])
+---
+
+## 🎯 核心差异化
+
+### 1. 模板驱动
+```
+不是：先转录，再手动总结
+而是：基于模板，AI 自动生成定制化总结
+```
+
+### 2. AI 优先
+```
+不是：transcript 是主要输出
+而是：AI 总结是核心价值，transcript 是基础能力
+```
+
+### 3. 体验优先
+```
+不是：功能导向，用户需要理解
+而是：体验导向，产品自动引导
 ```
 
 ---
 
-## 📊 数据库设计
+## 📊 API 接口
 
-### meetings 表
+### 上传文件
+```http
+POST /api/upload
+Content-Type: multipart/form-data
 
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| id | INTEGER | 主键 |
-| title | VARCHAR(255) | 会议标题 |
-| video_path | VARCHAR(500) | 视频文件路径 |
-| status | VARCHAR(20) | 状态 |
-| progress | INTEGER | 进度 0-100 |
-| created_at | DATETIME | 创建时间 |
-
-### results 表
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| id | INTEGER | 主键 |
-| meeting_id | INTEGER | 关联会议 |
-| transcript_raw | TEXT | 原始转录 |
-| summary_json | JSON | 多模板总结 |
-| llm_provider | VARCHAR(50) | LLM 提供商 |
-
----
-
-## 🎯 技术亮点（竞赛展示）
-
-### 1. 软件工程专业深度
-
-- **分层架构**：API → Service → Domain，职责清晰
-- **ORM 设计**：SQLAlchemy 抽象数据访问
-- **异步处理**：BackgroundTasks 非阻塞任务
-- **RESTful API**：标准化接口设计
-
-### 2. 性能优化
-
-- **C++ 核心引擎**：Whisper 浮点优化，推理速度提升 3-5 倍
-- **连接池复用**：数据库连接池管理
-- **流式处理**：大文件分块上传
-
-### 3. 成本控制
-
-- **DeepSeek LLM**：性价比远高于 GPT-4
-- **本地部署**：数据完全掌控，无云服务费
-
----
-
-## 📝 API 文档
-
-### POST /api/upload
-
-上传会议音视频文件
-
-**请求**:
-- `file`: 音视频文件 (multipart/form-data)
-- `title`: 会议标题
-
-**响应**:
-```json
 {
-  "id": 1,
-  "title": "产品周会",
-  "status": "pending",
-  "progress": 0
+  "file": <audio/video file>,
+  "title": "会议标题"
 }
 ```
 
-### GET /api/history
+### 获取会议列表
+```http
+GET /api/meetings
+```
 
-获取会议历史记录
+### 开始转录
+```http
+POST /api/meetings/{meeting_id}/transcribe
+```
 
-**参数**:
-- `skip`: 分页偏移
-- `limit`: 返回数量
-- `search`: 搜索关键词
+### 生成总结
+```http
+POST /api/meetings/{meeting_id}/summarize?template_id={template_id}
+```
 
-### GET /api/meetings/{id}
-
-获取会议详情（包含处理结果）
-
----
-
-## 🏆 竞赛答辩准备
-
-### 技术问答
-
-**Q: 为什么用 C++ 写核心引擎？**
-A: Whisper 推理涉及大量浮点运算，C++ 编译优化后比 Python 快 3-5 倍，能显著提升用户体验。
-
-**Q: 为什么选择 SQLite 而不是 PostgreSQL？**
-A: SQLite 单文件存储，部署简单，数据迁移方便，非常适合竞赛和中小型部署。
-
-**Q: 如何保证处理不阻塞？**
-A: 使用 FastAPI 的 BackgroundTasks，将耗时的 C++ 引擎调用放到后台执行，API 立即返回，前端轮询状态。
-
-**Q: 多模板总结如何实现？**
-A: C++ 引擎内部使用线程池并行调用 DeepSeek API，一次生成多个角色视角的总结。
+### 获取模板列表
+```http
+GET /api/templates
+```
 
 ---
 
-## 📄 License
+## 🔧 配置说明
 
-MIT License
+### Streamlit 配置
+```toml
+[server]
+maxUploadSize = 3072  # 3GB
+headless = true
+port = 8501
+
+[theme]
+primaryColor = "#002FA7"
+backgroundColor = "#FAFBFD"
+```
+
+### 环境变量
+```bash
+# LLM 配置
+OPENAI_API_KEY=sk-xxx
+ANTHROPIC_API_KEY=sk-ant-xxx
+DEEPSEEK_API_KEY=sk-xxx
+
+# ASR 配置
+WHISPER_MODEL=base
+```
 
 ---
 
-## 🙏 致谢
+## 🎨 截图预览
 
-- [FastAPI](https://fastapi.tiangolo.com/) - 现代化 Web 框架
-- [Streamlit](https://streamlit.io/) - 快速构建数据应用
-- [DeepSeek](https://www.deepseek.com/) - 高性价比 LLM
-- [Whisper](https://github.com/openai/whisper) - OpenAI 语音识别
+### Step 1: 上传文件
+```
+┌─────────────────────────────────────┐
+│    [Jinni]  智能会议处理 | 会议库    │
+├─────────────────────────────────────┤
+│  ●──○──○──○──○                       │
+│  上传 提取 模板 生成 结果             │
+├─────────────────────────────────────┤
+│                                     │
+│   📁 拖拽会议文件到这里               │
+│                                     │
+│   支持 MP3, WAV, MP4...              │
+│   最大 3GB                          │
+│                                     │
+└─────────────────────────────────────┘
+```
+
+### Step 3: 选择模板
+```
+┌─────────────────────────────────────┐
+│  ●──●──●──○──○                       │
+│  上传 提取 模板 生成 结果             │
+├─────────────────────────────────────┤
+│                                     │
+│  ┌──────────┐  ┌──────────┐         │
+│  │📋 通用   │  │🎯 产品   │         │
+│  │会议纪要  │  │需求讨论  │         │
+│  │          │  │          │         │
+│  │• 主要议题 │  │• 核心需求 │         │
+│  │• 讨论要点 │  │• 用户价值 │         │
+│  └──────────┘  └──────────┘         │
+│                                     │
+└─────────────────────────────────────┘
+```
+
+### Step 5: 查看结果
+```
+┌─────────────────────────────────────┐
+│  ●──●──●──●──●                       │
+│  上传 提取 模板 生成 结果             │
+├─────────────────────────────────────┤
+│ [🪄 AI 总结] [📝 完整文字稿]         │
+├─────────────────────────────────────┤
+│                                     │
+│  # 产品需求评审总结                  │
+│                                     │
+│  ## 一、核心目标                     │
+│  提升用户转化率 30%...               │
+│                                     │
+│  ## 二、重点讨论内容                 │
+│  - 新增智能推荐功能                  │
+│  - 优化注册流程                      │
+│                                     │
+└─────────────────────────────────────┘
+```
 
 ---
 
-**🧞 Jinni 会议精灵 - 让每一场会议都结构化、可复用**
+## 🎯 未来规划
+
+### 短期
+- [ ] 真实动效库集成（Framer Motion 风格）
+- [ ] WebSocket 实时进度推送
+- [ ] 模板预览功能
+- [ ] 多语言界面
+
+### 中期
+- [ ] 模板市场（分享与导入）
+- [ ] 协作功能
+- [ ] 企业版功能
+- [ ] 移动端适配
+
+### 长期
+- [ ] API 开放平台
+- [ ] 移动端原生应用
+- [ ] 浏览器插件
+- [ ] AI 智能推荐模板
+
+---
+
+## 📞 支持
+
+### 遇到问题？
+
+1. **检查服务状态**
+   ```bash
+   netstat -ano | findstr 8501
+   ```
+
+2. **查看服务日志**
+   - 终端输出会显示详细日志
+
+3. **重启服务**
+   ```bash
+   # Ctrl+C 停止，然后重新启动
+   streamlit run app.py --server.port 8501
+   ```
+
+### 功能建议？
+
+欢迎提出建议和反馈！
+
+---
+
+## 🎉 结语
+
+**Jinni Meeting Elf v2.0.0**
+
+让 AI 帮你从不同业务视角理解会议内容。
+
+不仅仅是转录，更是理解。
+
+---
+
+**版本**：v2.0.0
+**更新日期**：2026-05-11
+**作者**：Claude Sonnet 4.6
