@@ -100,7 +100,7 @@ def transcribe(
 
     Args:
         audio_path: 音频文件路径（WAV, 16kHz, mono）
-        provider: ASR 提供商名称（None/whisper=faster-whisper, whisper-legacy=原生实现）
+        provider: ASR 提供商名称（None=自动选择, whisper-legacy=原生实现, faster-whisper=CTK实现）
         language: 语言代码（"auto" 自动检测，"zh" 中文，"en" 英文）
         model_size: Whisper 模型大小（tiny, base, small, medium, large）
         auto_build_transcript: 是否自动构建原始会议文档（默认 False）
@@ -124,17 +124,32 @@ def transcribe(
     from audio.extract_audio import _get_audio_duration
     duration = _get_audio_duration(audio_path)
 
-    # 选择提供商（默认使用 faster-whisper）
-    if provider is None or provider == "whisper":
-        try:
-            asr_provider = FasterWhisperProvider(model_size=model_size)
-        except RuntimeError:
-            # faster-whisper 不可用时回退到原生实现
+    # 检测 CUDA 可用性
+    import torch
+    use_cuda = torch.cuda.is_available()
+    device = "cuda" if use_cuda else "cpu"
+
+    # 检查是否有本地 openai-whisper 格式的模型（.pt 文件）
+    from asr.providers.whisper import get_model_path
+    has_local_whisper_model = get_model_path(model_size) is not None
+
+    # 选择提供商
+    if provider is None:
+        # 自动选择：优先使用本地模型
+        if has_local_whisper_model:
+            # 使用原生 openai-whisper（支持本地 .pt 文件）
             asr_provider = WhisperProvider(model_size=model_size)
-    elif provider == "whisper-legacy":
+        else:
+            # 尝试使用 faster-whisper
+            try:
+                asr_provider = FasterWhisperProvider(model_size=model_size, device=device)
+            except RuntimeError:
+                # faster-whisper 不可用时回退到原生实现
+                asr_provider = WhisperProvider(model_size=model_size)
+    elif provider == "whisper" or provider == "whisper-legacy":
         asr_provider = WhisperProvider(model_size=model_size)
     elif provider == "faster-whisper":
-        asr_provider = FasterWhisperProvider(model_size=model_size)
+        asr_provider = FasterWhisperProvider(model_size=model_size, device=device)
     else:
         raise ValueError(f"不支持的 ASR 提供商: {provider}")
 

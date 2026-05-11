@@ -136,6 +136,174 @@ pytest tests/ -v
 pytest tests/test_asr_transcribe.py -v
 ```
 
+---
+
+## 启动方式
+
+### CLI 命令行模式
+
+#### 模式 1: 交互式菜单（推荐新手）
+
+**特点**: 菜单导航、支持拖拽文件上传、可视化操作
+
+```bash
+# 进入项目目录
+cd /mnt/d/projects/Meeting_intelligence
+
+# 启动交互式 CLI
+python -m meeting_intelligence.cli
+
+# 或指定 LLM 提供商
+python -m meeting_intelligence.cli --llm glm
+python -m meeting_intelligence.cli --llm deepseek
+python -m meeting_intelligence.cli --llm openai
+```
+
+**交互式菜单**:
+```
+===========================================================
+  AI 会议内容理解助手
+===========================================================
+
+请选择操作：
+  1. 上传音视频文件
+  2. 生成文字稿
+  3. 生成总结
+  4. 模板管理
+  5. 退出
+```
+
+**拖拽上传**: 在菜单中选择「1. 上传音视频文件」后，可以直接将文件拖拽到终端窗口。
+
+---
+
+#### 模式 2: 极简命令行（推荐批处理）
+
+**特点**: 一条命令完成处理、适合脚本化、批量操作
+
+#### 前置依赖
+
+```bash
+# 1. 安装 FFmpeg
+sudo apt-get install ffmpeg  # Ubuntu/Debian
+brew install ffmpeg          # macOS
+
+# 2. 安装 Whisper（ASR 语音识别）
+pip install openai-whisper
+# 或使用 faster-whisper（更快，推荐）
+pip install faster-whisper
+
+# 3. 下载 Whisper 模型到项目目录（推荐，离线可用）
+python scripts/download_whisper_model.py base --mirror
+# 或手动下载后放入 data/models/whisper/ 目录
+
+# 4. 安装项目依赖
+pip install pytest python-dotenv openai anthropic zhipuai
+```
+
+#### 模型下载
+
+如果网络无法自动下载模型，可以使用以下方法：
+
+```bash
+# 方法 1: 使用国内镜像下载
+python scripts/download_whisper_model.py base --mirror
+
+# 方法 2: 查看手动下载指南
+python scripts/download_whisper_model.py base --guide-only
+
+# 方法 3: 手动下载模型文件
+# 1. 访问镜像站: https://hf-mirror.com/openai/whisper-large-v3/tree/main
+# 2. 下载对应模型文件 (如 base.pt)
+# 3. 放到项目目录: data/models/whisper/
+```
+
+**模型文件放置位置**:
+```
+data/models/whisper/
+├── tiny.pt    (~40MB)
+├── base.pt    (~140MB)
+├── small.pt   (~460MB)
+├── medium.pt  (~1.5GB)
+└── large.pt   (~2.9GB)
+```
+
+#### 启动命令（极简模式）
+
+```bash
+# 进入项目目录
+cd /mnt/d/projects/Meeting_intelligence
+
+# 基础用法（Mock LLM，用于测试）
+python -m meeting_intelligence meeting.mp4
+
+# 使用 GLM（智谱 AI）
+python -m meeting_intelligence meeting.mp3 --provider glm
+
+# 使用 OpenAI
+python -m meeting_intelligence meeting.mp4 --provider openai
+
+# 使用 Anthropic Claude
+python -m meeting_intelligence meeting.mp4 --provider anthropic
+
+# 指定模板
+python -m meeting_intelligence meeting.mp4 --provider glm --template product-manager
+
+# 不保存结果
+python -m meeting_intelligence meeting.mp3 --no-save
+```
+
+#### 参数说明
+
+| 参数 | 说明 | 默认值 |
+|------|------|--------|
+| `input` | 输入文件路径（必需） | - |
+| `--provider`, `-p` | LLM 提供商 | `mock` |
+| `--model`, `-m` | LLM 模型名称 | 根据 provider 自动选择 |
+| `--template`, `-t` | 模板名称 | `general` |
+| `--no-save` | 不保存结果到文件 | False |
+
+---
+
+### Web 界面模式
+
+适合非技术用户、交互式操作、可视化预览。
+
+#### 前置依赖
+
+```bash
+# 进入 Web 后端目录
+cd web_backend
+
+# 安装依赖
+pip install -r requirements.txt
+```
+
+#### 启动命令
+
+```bash
+# 进入 Web 后端目录
+cd /mnt/d/projects/Meeting_intelligence/web_backend
+
+# 启动 Streamlit 服务
+streamlit run app.py --server.port 8501
+
+# 或指定其他端口
+streamlit run app.py --server.port 8502
+```
+
+#### 访问地址
+
+启动后在浏览器访问：`http://localhost:8501`
+
+#### Web 功能页面
+
+1. **智能会议处理** - 上传音视频文件，自动转录并生成总结
+2. **个人会议库** - 查看历史记录和已处理的会议
+3. **模板工厂** - 自定义和管理总结模板
+
+---
+
 ### CLI 使用示例
 
 ```bash

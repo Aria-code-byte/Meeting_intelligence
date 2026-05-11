@@ -503,7 +503,7 @@ def page_main():
                     "将视频或音频拖入此处开始处理",
                     type=["mp4", "wav", "mp3", "m4a", "webm"],
                     label_visibility="collapsed",
-                    help="支持最大 1GB 的音视频文件",
+                    help="支持最大 3GB 的音视频文件",
                     key="main_uploader"
                 )
 

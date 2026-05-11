@@ -83,6 +83,9 @@ data/outputs/
 data/formatted/
 data/tmp/
 
+# Whisper models (large files, should be downloaded locally)
+data/models/
+
 # Generated artifacts - outputs directory
 outputs/
 

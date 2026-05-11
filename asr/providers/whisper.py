@@ -4,11 +4,53 @@ Whisper ASR provider.
 Supports both local Whisper (via openai-whisper) and Whisper API.
 """
 
-from typing import List
+from typing import List, Optional
+from pathlib import Path
 import subprocess
 
 from asr.providers.base import BaseASRProvider
 from asr.types import Utterance
+
+
+# ============================================================
+# 模型路径配置
+# ============================================================
+
+def get_project_model_dir() -> Path:
+    """获取项目本地模型目录"""
+    project_root = Path(__file__).parent.parent.parent
+    model_dir = project_root / "data" / "models" / "whisper"
+    model_dir.mkdir(parents=True, exist_ok=True)
+    return model_dir
+
+
+def get_model_path(model_size: str) -> Optional[Path]:
+    """
+    获取模型文件路径（优先使用项目本地）
+
+    Args:
+        model_size: 模型大小（tiny, base, small, medium, large）
+
+    Returns:
+        模型文件路径，如果不存在返回 None
+    """
+    model_dir = get_project_model_dir()
+    model_file = model_dir / f"{model_size}.pt"
+
+    if model_file.exists():
+        return model_file
+
+    # 检查用户缓存目录
+    try:
+        import os
+        cache_dir = Path(os.path.expanduser("~")) / ".cache" / "whisper"
+        cache_file = cache_dir / f"{model_size}.pt"
+        if cache_file.exists():
+            return cache_file
+    except Exception:
+        pass
+
+    return None
 
 
 class WhisperProvider(BaseASRProvider):
@@ -112,8 +154,23 @@ class WhisperProvider(BaseASRProvider):
         try:
             import whisper
 
-            # 加载模型
-            model = whisper.load_model(self.model_size)
+            # 优先使用项目本地模型
+            model_dir = get_project_model_dir()
+            model_path = model_dir / f"{self.model_size}.pt"
+
+            import torch
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+
+            if model_path.exists():
+                # 使用本地模型目录（通过 download_root 参数）
+                model = whisper.load_model(
+                    self.model_size,
+                    device=device,
+                    download_root=str(model_dir)
+                )
+            else:
+                # 使用默认方式加载（会下载到缓存目录）
+                model = whisper.load_model(self.model_size, device=device)
 
             # 语言参数处理
             language_arg = None if language == "auto" else language

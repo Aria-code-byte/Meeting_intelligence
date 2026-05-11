@@ -14,6 +14,38 @@ from asr.providers.base import BaseASRProvider
 from asr.types import Utterance
 
 
+# ============================================================
+# 模型路径配置
+# ============================================================
+
+def get_project_model_dir() -> Path:
+    """获取项目本地模型目录"""
+    project_root = Path(__file__).parent.parent.parent
+    model_dir = project_root / "data" / "models" / "whisper"
+    model_dir.mkdir(parents=True, exist_ok=True)
+    return model_dir
+
+
+def get_model_path_or_dir(model_size: str) -> Optional[Path]:
+    """
+    获取 faster-whisper 模型路径
+
+    Args:
+        model_size: 模型大小
+
+    Returns:
+        模型目录路径，如果不存在返回 None
+    """
+    model_dir = get_project_model_dir()
+    # faster-whisper 使用文件夹存储模型
+    model_folder = model_dir / model_size
+
+    if model_folder.exists() and (model_folder / "config.json").exists():
+        return model_folder
+
+    return None
+
+
 class FasterWhisperProvider(BaseASRProvider):
     """
     Faster-Whisper ASR 提供商
@@ -96,9 +128,12 @@ class FasterWhisperProvider(BaseASRProvider):
             else:
                 self.compute_type = "int8"  # CPU 使用 int8 加速
 
+        # 优先使用项目本地模型
+        model_path_or_size = get_model_path_or_dir(self.model_size) or self.model_size
+
         # 加载模型
         self._model = WhisperModel(
-            self.model_size,
+            model_path_or_size,
             device=self.device,
             compute_type=self.compute_type,
             num_workers=self.num_workers,

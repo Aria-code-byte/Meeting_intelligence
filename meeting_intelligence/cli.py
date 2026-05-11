@@ -14,12 +14,28 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 
-# 加载 .env（可选）
+# 加载配置
 try:
     from dotenv import load_dotenv
     env_path = Path(__file__).parent.parent / ".env"
     load_dotenv(env_path)
+
+    # 导入统一配置管理
+    from config_manager import get_config
+    config = get_config()
+
+    # 如果是首次运行，启动配置向导
+    if config.system.first_run:
+        print("\n🎉 欢迎使用 AI Meeting Assistant！")
+        print("\n检测到首次运行，启动配置向导...\n")
+        import subprocess
+        wizard_path = Path(__file__).parent.parent / "installer" / "setup_wizard.py"
+        subprocess.run([sys.executable, str(wizard_path)])
+        print()
+        # 重新加载配置
+        config = get_config(reload=True)
 except ImportError:
+    config = None
     pass
 
 
@@ -418,7 +434,7 @@ class MeetingAssistantCLI:
 
             # 执行 ASR 转录
             model_size = os.environ.get("WHISPER_MODEL", "base")
-            
+
             # 检查 Whisper 是否安装
             try:
                 import whisper
@@ -431,21 +447,47 @@ class MeetingAssistantCLI:
                 print()
                 self.print_info("安装完成后重新运行即可")
                 return
-            
-            # 检查是否首次使用（模型未下载）
-            print(f"\n正在加载 Whisper 模型 ({model_size})...")
-            print("提示: 首次使用需要下载模型文件（约 70MB-3GB，取决于模型大小）")
-            print("      模型大小: tiny(~40MB) < base(~140MB) < small(~460MB)")
-            print("      如果下载时间较长，请耐心等待...")
-            print()
-            
+
+            # 检查本地模型是否存在
+            from asr.providers.whisper import get_model_path
+            local_model = get_model_path(model_size)
+
+            if local_model:
+                # 使用本地模型
+                print(f"\n正在加载 Whisper 模型 ({model_size})...")
+                self.print_info(f"使用本地模型: {local_model}")
+                print()
+            else:
+                # 需要下载模型
+                print(f"\n正在加载 Whisper 模型 ({model_size})...")
+                print("提示: 本地未找到模型，将尝试从网络下载")
+                print("      模型大小: tiny(~40MB) < base(~140MB) < small(~460MB)")
+                print()
+                print("如果下载失败，请使用以下命令手动下载:")
+                print(f"  python scripts/download_whisper_model.py {model_size} --mirror")
+                print()
+
             from asr.transcribe import transcribe
 
-            self.transcript_result = transcribe(
-                audio_path,
-                language="auto",
-                model_size=model_size
-            )
+            try:
+                self.transcript_result = transcribe(
+                    audio_path,
+                    language="auto",
+                    model_size=model_size
+                )
+            except Exception as e:
+                error_msg = str(e)
+                if "Network" in error_msg or "101" in error_msg or "unreachable" in error_msg.lower():
+                    self.print_error("模型下载失败！网络不可达。")
+                    print()
+                    print("请使用以下方法手动下载模型:")
+                    print(f"  python scripts/download_whisper_model.py {model_size} --mirror")
+                    print()
+                    print("或访问 https://hf-mirror.com/openai/whisper-large-v3/tree/main")
+                    print(f"下载 {model_size}.pt 文件后放到 data/models/whisper/ 目录")
+                    return
+                else:
+                    raise
 
             # 构建纯文本转录
             utterances = self.transcript_result.utterances
