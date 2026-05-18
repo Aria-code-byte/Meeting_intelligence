@@ -1,0 +1,39 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --color-background: #EEF8FC;
+    --color-primary: #061B35;
+    --color-primary-dark: #08213F;
+    --color-secondary: #536172;
+    --color-accent-orange: #FFA54D;
+    --color-accent-red: #FF6B6B;
+    --color-accent-green: #10B981;
+    --color-border: #D6E1EA;
+    --color-surface-blue: #DCEBFF;
+    --color-surface-blue-light: #E9F3FF;
+    --color-surface-orange: #FFF5EB;
+    --color-surface-red: #FFE7E7;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background;
+    color: #06162E;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+@layer utilities {
+  .line-clamp-2 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+}
