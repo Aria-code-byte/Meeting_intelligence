@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { SlidersHorizontal, ChevronLeft, ChevronRight, MoreVertical, Trash2, Eye, RotateCcw, Check, X, TrendingUp, Phone, Users, Palette, Megaphone } from 'lucide-react'
 import { StatusBadge } from '../components/StatusBadge'
+import { ActionMenuPortal } from '../components/ActionMenuPortal'
 import type { Meeting, MeetingStatus } from '../App'
 
 interface MeetingLibraryPageProps {
@@ -39,11 +40,46 @@ export function MeetingLibraryPage({ meetings, onMeetingClick, onMeetingDelete, 
   const [statusFilter, setStatusFilter] = useState('all')
   const [showMonthFilter, setShowMonthFilter] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
-  const [actionMenuId, setActionMenuId] = useState<number | null>(null)
+  const [openMenuId, setOpenMenuId] = useState<number | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
   const [regeneratingId, setRegeneratingId] = useState<number | null>(null)
+  const [menuPosition, setMenuPosition] = useState<{
+    top: number
+    left: number
+    direction: 'down' | 'up'
+  } | null>(null)
 
   const itemsPerPage = 10
+
+  // Handle opening action menu with position calculation
+  const handleMenuOpen = (meetingId: number, event: React.MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation()
+
+    const rect = event.currentTarget.getBoundingClientRect()
+    const menuWidth = 192 // w-48 = 12rem = 192px
+    const menuHeight = 144 // 预估菜单高度
+    const gap = 8
+
+    const spaceBelow = window.innerHeight - rect.bottom
+    const direction = spaceBelow < menuHeight + gap ? 'up' : 'down'
+
+    setOpenMenuId(meetingId)
+    setMenuPosition({
+      top: direction === 'down'
+        ? rect.bottom + gap
+        : rect.top - menuHeight - gap,
+      left: Math.min(
+        rect.right - menuWidth,
+        window.innerWidth - menuWidth - 12
+      ),
+      direction,
+    })
+  }
+
+  const handleMenuClose = () => {
+    setOpenMenuId(null)
+    setMenuPosition(null)
+  }
 
   // Filter meetings
   const filteredMeetings = meetings.filter(meeting => {
@@ -65,7 +101,7 @@ export function MeetingLibraryPage({ meetings, onMeetingClick, onMeetingDelete, 
   const handleDelete = (id: number) => {
     onMeetingDelete(id)
     setDeleteConfirmId(null)
-    setActionMenuId(null)
+    handleMenuClose()
   }
 
   const handleRegenerate = (id: number) => {
@@ -73,7 +109,7 @@ export function MeetingLibraryPage({ meetings, onMeetingClick, onMeetingDelete, 
     setTimeout(() => {
       onMeetingStatusChange(id, 'processing')
       setRegeneratingId(null)
-      setActionMenuId(null)
+      handleMenuClose()
     }, 2000)
   }
 
@@ -105,7 +141,21 @@ export function MeetingLibraryPage({ meetings, onMeetingClick, onMeetingDelete, 
           {/* Status Dropdown */}
           <div className="relative">
             <button
-              onClick={() => setActionMenuId(actionMenuId === 'status' ? null : 'status' as any)}
+              onClick={(e) => {
+                e.stopPropagation()
+                const isOpen = openMenuId === 'status'
+                if (isOpen) {
+                  handleMenuClose()
+                } else {
+                  const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect()
+                  setOpenMenuId('status')
+                  setMenuPosition({
+                    top: rect.bottom + 8,
+                    left: rect.left,
+                    direction: 'down',
+                  })
+                }
+              }}
               className="flex items-center gap-2 px-4 py-2.5 bg-white border border-[#D6E1EA] rounded-xl text-[#06162E] hover:bg-[#EEF8FC] transition-colors"
             >
               <SlidersHorizontal className="w-4 h-4" />
@@ -114,16 +164,20 @@ export function MeetingLibraryPage({ meetings, onMeetingClick, onMeetingDelete, 
               </span>
             </button>
 
-            {actionMenuId === 'status' && (
-              <div className="absolute top-full left-0 mt-2 w-48 bg-white rounded-xl border border-[#D6E1EA] shadow-lg z-10">
+            <ActionMenuPortal
+              open={openMenuId === 'status'}
+              position={openMenuId === 'status' ? menuPosition : null}
+              onClose={handleMenuClose}
+            >
+              <div className="w-48 bg-white rounded-xl border border-[#D6E1EA] shadow-lg overflow-hidden">
                 {statusOptions.map(option => (
                   <button
                     key={option.value}
                     onClick={() => {
                       setStatusFilter(option.value)
-                      setActionMenuId(null)
+                      handleMenuClose()
                     }}
-                    className="w-full px-4 py-3 text-left text-sm hover:bg-[#EEF8FC] transition-colors flex items-center justify-between first:rounded-t-xl last:rounded-b-xl"
+                    className="w-full px-4 py-3 text-left text-sm hover:bg-[#EEF8FC] transition-colors flex items-center justify-between"
                   >
                     <span>{option.label}</span>
                     {statusFilter === option.value && (
@@ -132,7 +186,7 @@ export function MeetingLibraryPage({ meetings, onMeetingClick, onMeetingDelete, 
                   </button>
                 ))}
               </div>
-            )}
+            </ActionMenuPortal>
           </div>
 
           {/* Month Filter */}
@@ -177,7 +231,7 @@ export function MeetingLibraryPage({ meetings, onMeetingClick, onMeetingDelete, 
           <tbody>
             {paginatedMeetings.map((meeting) => {
               const Icon = iconMap[meeting.id] || TrendingUp
-              const showMenu = actionMenuId === meeting.id
+              const showMenu = openMenuId === meeting.id
               const showDeleteConfirm = deleteConfirmId === meeting.id
 
               return (
@@ -203,7 +257,7 @@ export function MeetingLibraryPage({ meetings, onMeetingClick, onMeetingDelete, 
                   <td className="py-4 px-6">
                     <StatusBadge status={meeting.status} />
                   </td>
-                  <td className="py-4 px-6 text-right relative">
+                  <td className="py-4 px-6 text-right">
                     {showDeleteConfirm ? (
                       <div className="flex items-center justify-end gap-2">
                         <span className="text-sm text-[#536172]">确认删除?</span>
@@ -228,28 +282,26 @@ export function MeetingLibraryPage({ meetings, onMeetingClick, onMeetingDelete, 
                       </div>
                     ) : (
                       <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setActionMenuId(showMenu ? null : meeting.id)
-                        }}
+                        onClick={(e) => handleMenuOpen(meeting.id, e)}
                         className="text-[#536172] hover:text-[#061B35] transition-colors p-1"
                       >
                         <MoreVertical className="w-5 h-5" />
                       </button>
                     )}
 
-                    {/* Action Menu */}
-                    {showMenu && (
-                      <div
-                        className="absolute right-6 top-full mt-2 w-48 bg-white rounded-xl border border-[#D6E1EA] shadow-lg z-10"
-                        onClick={(e) => e.stopPropagation()}
-                      >
+                    {/* Action Menu - Portal to body */}
+                    <ActionMenuPortal
+                      open={showMenu}
+                      position={showMenu ? menuPosition : null}
+                      onClose={handleMenuClose}
+                    >
+                      <div className="w-48 bg-white rounded-xl border border-[#D6E1EA] shadow-lg overflow-hidden">
                         <button
                           onClick={() => {
                             onMeetingClick(meeting)
-                            setActionMenuId(null)
+                            handleMenuClose()
                           }}
-                          className="w-full px-4 py-3 text-left text-sm hover:bg-[#EEF8FC] transition-colors flex items-center gap-3 first:rounded-t-xl"
+                          className="w-full px-4 py-3 text-left text-sm hover:bg-[#EEF8FC] transition-colors flex items-center gap-3"
                         >
                           <Eye className="w-4 h-4 text-[#536172]" />
                           <span>查看总结</span>
@@ -266,15 +318,15 @@ export function MeetingLibraryPage({ meetings, onMeetingClick, onMeetingDelete, 
                         <button
                           onClick={() => {
                             setDeleteConfirmId(meeting.id)
-                            setActionMenuId(null)
+                            handleMenuClose()
                           }}
-                          className="w-full px-4 py-3 text-left text-sm hover:bg-red-50 text-red-600 transition-colors flex items-center gap-3 last:rounded-b-xl"
+                          className="w-full px-4 py-3 text-left text-sm hover:bg-red-50 text-red-600 transition-colors flex items-center gap-3"
                         >
                           <Trash2 className="w-4 h-4" />
                           <span>删除</span>
                         </button>
                       </div>
-                    )}
+                    </ActionMenuPortal>
                   </td>
                 </tr>
               )
