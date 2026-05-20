@@ -1,10 +1,11 @@
 import { useRef, useState, useEffect } from 'react'
-import { Upload, Lock, FileText, BarChart3, TrendingUp, Briefcase, X, CheckCircle, Play, Pause, RotateCcw } from 'lucide-react'
+import { Upload, Lock, FileText, BarChart3, TrendingUp, Briefcase, X, CheckCircle, Play, Pause, RotateCcw, ChevronDown, AlertCircle } from 'lucide-react'
 import { RecentMeetingCard } from '../components/RecentMeetingCard'
-import type { Meeting } from '../App'
+import type { Meeting, SummaryTemplate } from '../types/models'
 
 interface DashboardPageProps {
   meetings: Meeting[]
+  templates: SummaryTemplate[]
   selectedFile: File | null
   processingStage: 'idle' | 'selected' | 'uploading' | 'transcribing' | 'cleaning' | 'summarizing' | 'completed' | 'failed'
   processingProgress: number
@@ -13,6 +14,7 @@ interface DashboardPageProps {
   onProcessingProgressChange: (progress: number) => void
   onMeetingAdd: (meeting: Meeting) => void
   onMeetingClick: (meeting: Meeting) => void
+  onStartProcessing: (file: File, title: string, templateId: string) => void
 }
 
 const steps = [
@@ -24,6 +26,7 @@ const steps = [
 
 export function DashboardPage({
   meetings,
+  templates,
   selectedFile,
   processingStage,
   processingProgress,
@@ -31,12 +34,18 @@ export function DashboardPage({
   onProcessingStageChange,
   onProcessingProgressChange,
   onMeetingAdd,
-  onMeetingClick
+  onMeetingClick,
+  onStartProcessing
 }: DashboardPageProps) {
   const [isDragging, setIsDragging] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
+  const [isProcessing, setIsProcessing] = useState(false)
+  const [currentProgress, setCurrentProgress] = useState(0)
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('')
+  const [showTemplateDropdown, setShowTemplateDropdown] = useState(false)
+  const [meetingTitle, setMeetingTitle] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const intervalRef = useRef<NodeJS.Timeout | null>(null)
+  const intervalRef = useRef<number | null>(null)
 
   // Cleanup interval on unmount
   useEffect(() => {
@@ -46,6 +55,19 @@ export function DashboardPage({
       }
     }
   }, [])
+
+  // Initialize with default template
+  useEffect(() => {
+    if (templates.length > 0 && !selectedTemplateId) {
+      const defaultTemplate = templates.find(t => t.isDefault) || templates[0]
+      setSelectedTemplateId(defaultTemplate.id)
+    }
+  }, [templates, selectedTemplateId])
+
+  // Sync progress to parent
+  useEffect(() => {
+    onProcessingProgressChange(currentProgress)
+  }, [currentProgress, onProcessingProgressChange])
 
   const handleFileSelect = (file: File) => {
     // Validate file size (2GB max)
@@ -65,6 +87,11 @@ export function DashboardPage({
     }
 
     setErrorMessage('')
+
+    // Initialize meeting title from filename (without extension)
+    const defaultTitle = file.name.replace(/\.[^/.]+$/, '')
+    setMeetingTitle(defaultTitle)
+
     onFileSelect(file)
     onProcessingStageChange('selected')
   }
@@ -75,58 +102,34 @@ export function DashboardPage({
       return
     }
 
+    // Prevent starting if already processing
+    if (isProcessing) return
+
+    // Validate meeting title
+    const title = meetingTitle.trim()
+    if (!title) {
+      setErrorMessage('请输入会议名称')
+      return
+    }
+
+    if (title.length > 80) {
+      setErrorMessage('会议名称不能超过 80 个字符')
+      return
+    }
+
+    // Validate template selection
+    if (!selectedTemplateId) {
+      setErrorMessage('请先选择总结模板')
+      return
+    }
+
+    setIsProcessing(true)
     onProcessingStageChange('uploading')
-    onProcessingProgressChange(0)
+    setCurrentProgress(0)
+    setErrorMessage('')
 
-    // Simulate processing progress
-    intervalRef.current = setInterval(() => {
-      onProcessingProgressChange(prev => {
-        const newProgress = prev + 1
-
-        // Stage transitions based on progress
-        if (newProgress <= 20) {
-          onProcessingStageChange('uploading')
-        } else if (newProgress <= 65) {
-          onProcessingStageChange('transcribing')
-        } else if (newProgress <= 85) {
-          onProcessingStageChange('cleaning')
-        } else if (newProgress <= 100) {
-          onProcessingStageChange('summarizing')
-        }
-
-        // Complete processing
-        if (newProgress >= 100) {
-          clearInterval(intervalRef.current!)
-
-          setTimeout(() => {
-            onProcessingStageChange('completed')
-
-            // Create new meeting
-            const newMeeting: Meeting = {
-              id: Date.now(),
-              title: selectedFile.name.replace(/\.[^/.]+$/, ''),
-              date: new Date().toISOString().split('T')[0],
-              duration: '0m', // Would be calculated from actual audio
-              status: 'completed',
-              progress: 100,
-              participants: ['User']
-            }
-            onMeetingAdd(newMeeting)
-
-            // Reset after delay
-            setTimeout(() => {
-              onProcessingStageChange('idle')
-              onProcessingProgressChange(0)
-              onFileSelect(null)
-            }, 3000)
-          }, 500)
-
-          return 100
-        }
-
-        return newProgress
-      })
-    }, 100) // Update every 100ms for smooth animation
+    // Call parent component to start real processing with user's title
+    onStartProcessing(selectedFile, title, selectedTemplateId)
   }
 
   const cancelProcessing = () => {
@@ -134,9 +137,11 @@ export function DashboardPage({
       clearInterval(intervalRef.current)
       intervalRef.current = null
     }
+    setIsProcessing(false)
+    setCurrentProgress(0)
     onProcessingStageChange('idle')
-    onProcessingProgressChange(0)
     onFileSelect(null)
+    setMeetingTitle('')
     setErrorMessage('')
   }
 
@@ -200,6 +205,51 @@ export function DashboardPage({
               </p>
             </div>
 
+            {/* Template Selection */}
+            <div className="w-[690px] mb-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-[#06162E]">总结模板：</span>
+                <div className="relative">
+                  <button
+                    onClick={() => setShowTemplateDropdown(!showTemplateDropdown)}
+                    className="flex items-center gap-2 px-4 py-2 bg-white border border-[#D6E1EA] rounded-xl text-[#06162E] hover:bg-[#EEF8FC] transition-colors min-w-[200px] justify-between"
+                  >
+                    <span className="text-sm">
+                      {templates.find(t => t.id === selectedTemplateId)?.name || '选择模板'}
+                    </span>
+                    <ChevronDown className="w-4 h-4 text-[#536172]" />
+                  </button>
+
+                  {showTemplateDropdown && (
+                    <div className="absolute top-full left-0 mt-2 w-full bg-white border border-[#D6E1EA] rounded-xl shadow-lg z-10 max-h-[300px] overflow-y-auto">
+                      {templates.map((template) => (
+                        <button
+                          key={template.id}
+                          onClick={() => {
+                            setSelectedTemplateId(template.id)
+                            setShowTemplateDropdown(false)
+                          }}
+                          className={`w-full px-4 py-3 text-left text-sm hover:bg-[#EEF8FC] transition-colors flex items-center justify-between ${
+                            template.id === selectedTemplateId ? 'bg-[#EEF8FC]' : ''
+                          }`}
+                        >
+                          <span>{template.name}</span>
+                          {template.isDefault && (
+                            <span className="text-xs text-[#536172] bg-[#EEF8FC] px-2 py-1 rounded">默认</span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+              {selectedTemplateId && (
+                <p className="text-xs text-[#536172] mt-2">
+                  {templates.find(t => t.id === selectedTemplateId)?.description}
+                </p>
+              )}
+            </div>
+
             {/* Upload Card */}
             <div
               className={`relative w-[690px] h-[500px] bg-white rounded-2xl border-2 transition-all p-12 text-center flex flex-col items-center justify-center cursor-pointer ${
@@ -258,6 +308,14 @@ export function DashboardPage({
         {(processingStage === 'selected' || processingStage === 'uploading' || processingStage === 'transcribing' || processingStage === 'cleaning' || processingStage === 'summarizing') && (
           <div className="w-[690px]">
             <div className="bg-white rounded-2xl p-8 mb-6">
+              {/* Error Message */}
+              {errorMessage && (
+                <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 text-red-600 rounded-lg text-sm">
+                  <p className="font-medium">处理失败</p>
+                  <p className="mt-1">{errorMessage}</p>
+                </div>
+              )}
+
               {/* File Info */}
               <div className="flex items-center justify-between mb-8">
                 <div className="flex items-center gap-4">
@@ -300,6 +358,26 @@ export function DashboardPage({
                   />
                 </div>
               </div>
+
+              {/* Meeting Title Input */}
+              {processingStage === 'selected' && (
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-[#06162E] mb-2">
+                    会议名称
+                  </label>
+                  <input
+                    type="text"
+                    value={meetingTitle}
+                    onChange={(e) => setMeetingTitle(e.target.value)}
+                    maxLength={80}
+                    placeholder="请输入会议名称"
+                    className="w-full px-4 py-3 bg-white border border-[#D6E1EA] rounded-xl text-sm text-[#06162E] placeholder:text-[#536172] focus:outline-none focus:border-[#061B35] focus:ring-2 focus:ring-[#061B35]/20 transition-all"
+                  />
+                  <p className="text-xs text-[#536172] mt-1">
+                    {meetingTitle.length}/80 个字符
+                  </p>
+                </div>
+              )}
 
               {/* Steps */}
               <div className="space-y-4 mb-8">
@@ -358,7 +436,8 @@ export function DashboardPage({
                   </button>
                   <button
                     onClick={startProcessing}
-                    className="flex-1 px-6 py-3 bg-[#061B35] text-white rounded-xl font-medium hover:bg-[#08213F] transition-colors flex items-center justify-center gap-2"
+                    disabled={isProcessing}
+                    className="flex-1 px-6 py-3 bg-[#061B35] text-white rounded-xl font-medium hover:bg-[#08213F] transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <Play className="w-5 h-5" />
                     开始处理
@@ -406,6 +485,45 @@ export function DashboardPage({
                     </p>
                   </div>
                 )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Failed View - Backend unavailable */}
+        {(processingStage === 'idle' || processingStage === 'failed') && errorMessage && (
+          <div className="w-[690px]">
+            <div className="bg-white rounded-2xl p-8 border-2 border-[#FFE7E7]">
+              <div className="text-center mb-6">
+                <AlertCircle className="w-16 h-16 text-[#FF6B6B] mx-auto mb-4" />
+                <h2 className="text-2xl font-bold text-[#06162E] mb-2">后端服务暂不可用</h2>
+                <p className="text-[#536172] mb-6">
+                  后端转写服务暂时不可用，会议记录已保存。
+                  你可以稍后重试，或在会议详情页手动补充文字稿继续生成总结。
+                </p>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setErrorMessage('')
+                    onFileSelect(null)
+                  }}
+                  className="flex-1 px-6 py-3 border border-[#D6E1EA] rounded-xl text-[#06162E] font-medium hover:bg-[#EEF8FC] transition-colors"
+                >
+                  返回首页
+                </button>
+                <button
+                  onClick={() => {
+                    const lastMeeting = meetings[0]
+                    if (lastMeeting) {
+                      onMeetingClick(lastMeeting)
+                    }
+                  }}
+                  className="flex-1 px-6 py-3 bg-[#061B35] text-white rounded-xl font-medium hover:bg-[#08213F] transition-colors"
+                >
+                  去会议详情页
+                </button>
               </div>
             </div>
           </div>
@@ -469,7 +587,7 @@ export function DashboardPage({
                 date={meeting.date}
                 duration={meeting.duration}
                 status={meeting.status}
-                progress={meeting.progress}
+                progress={meeting.progress || 0}
                 icon={meeting.status === 'completed' ? TrendingUp : Briefcase}
               />
             </div>

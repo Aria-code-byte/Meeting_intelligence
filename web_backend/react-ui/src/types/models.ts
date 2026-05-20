@@ -24,6 +24,8 @@ export interface Meeting {
   transcript?: string;
   summary?: string;
   actionItemIds?: string[];
+  errorMessage?: string;
+  backendMeetingId?: string;
   createdAt: string;
   updatedAt: string;
 }

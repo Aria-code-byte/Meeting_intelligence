@@ -5,6 +5,7 @@
 
 import type { Meeting, SummaryTemplate, ActionItem } from '../types/models';
 import { seedMeetings, seedTemplates, seedActionItems } from '../data/seedData';
+import { generateId, isLegacyTimestampId } from './id';
 
 // localStorage keys
 const STORAGE_KEYS = {
@@ -21,7 +22,6 @@ function getFromStorage<T>(key: string, defaultValue: T[]): T[] {
     const parsed = JSON.parse(item);
     return Array.isArray(parsed) ? parsed : defaultValue;
   } catch (error) {
-    console.error(`Error reading from localStorage key "${key}":`, error);
     return defaultValue;
   }
 }
@@ -31,13 +31,14 @@ function saveToStorage<T>(key: string, data: T[]): boolean {
     localStorage.setItem(key, JSON.stringify(data));
     return true;
   } catch (error) {
-    console.error(`Error writing to localStorage key "${key}":`, error);
     return false;
   }
 }
 
-function generateId(): string {
-  return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+// Use the unified ID generator from id.ts
+// This function is kept for backward compatibility but now uses the new implementation
+function generateStorageId(prefix?: string): string {
+  return generateId(prefix);
 }
 
 // Initialize seed data if storage is empty
@@ -56,15 +57,85 @@ function initializeSeedData() {
 // Initialize on module load
 initializeSeedData();
 
+/**
+ * Normalize meetings - fix duplicate IDs and remove obvious duplicates
+ * This handles cases where:
+ * 1. Multiple records have the same ID (from old Date.now() generation)
+ * 2. Multiple records have identical content (true duplicates)
+ *
+ * Returns [normalizedMeetings, hasChanges] tuple
+ */
+function normalizeMeetings(meetings: Meeting[]): [Meeting[], boolean] {
+  const seenIds = new Set<string>();
+  const seenContent = new Set<string>();
+  const normalized: Meeting[] = [];
+  let regeneratedIds = 0;
+  let removedDuplicates = 0;
+
+  for (const meeting of meetings) {
+    let normalizedMeeting = { ...meeting };
+
+    // Check 1: Fix duplicate or legacy IDs
+    if (!normalizedMeeting.id || seenIds.has(normalizedMeeting.id) || isLegacyTimestampId(normalizedMeeting.id)) {
+      const oldId = normalizedMeeting.id;
+      normalizedMeeting.id = generateStorageId('meeting');
+      normalizedMeeting.updatedAt = new Date().toISOString();
+      regeneratedIds++;
+    }
+
+    // Check 2: Detect content duplicates (title + date + duration + participants)
+    // Only if this looks like an actual duplicate, not just similar meetings
+    const contentKey = `${normalizedMeeting.title}|${normalizedMeeting.date}|${normalizedMeeting.duration}|${normalizedMeeting.participants.sort().join(',')}`;
+
+    if (seenContent.has(contentKey)) {
+      // This is a true duplicate, skip it
+      removedDuplicates++;
+      continue;
+    }
+
+    seenIds.add(normalizedMeeting.id);
+    seenContent.add(contentKey);
+    normalized.push(normalizedMeeting);
+  }
+
+
+  // Return both normalized meetings and a flag indicating if changes were made
+  return [normalized, regeneratedIds > 0 || removedDuplicates > 0];
+}
+
+// Run normalization on module load to fix existing data
+function runInitialNormalization() {
+  const meetings = getFromStorage<Meeting>(STORAGE_KEYS.MEETINGS, []);
+  if (meetings.length > 0) {
+    const [normalized, hasChanges] = normalizeMeetings(meetings);
+    if (hasChanges) {
+      saveToStorage(STORAGE_KEYS.MEETINGS, normalized);
+    }
+  }
+}
+
+// Run normalization on module load
+runInitialNormalization();
+
 // Meeting storage operations
 export const meetingStorage = {
   getAll: (): Meeting[] => {
-    return getFromStorage<Meeting>(STORAGE_KEYS.MEETINGS, []);
+    const meetings = getFromStorage<Meeting>(STORAGE_KEYS.MEETINGS, []);
+    // Always normalize to ensure unique IDs
+    const [normalized, hasChanges] = normalizeMeetings(meetings);
+
+    // If normalization made changes, write back to localStorage immediately
+    if (hasChanges) {
+      saveToStorage(STORAGE_KEYS.MEETINGS, normalized);
+    }
+
+    return normalized;
   },
 
   getById: (id: string): Meeting | null => {
     const meetings = getFromStorage<Meeting>(STORAGE_KEYS.MEETINGS, []);
-    return meetings.find(m => m.id === id) || null;
+    const [normalized] = normalizeMeetings(meetings);
+    return normalized.find(m => m.id === id) || null;
   },
 
   create: (data: Omit<Meeting, 'id' | 'createdAt' | 'updatedAt'>): Meeting => {
@@ -72,7 +143,7 @@ export const meetingStorage = {
     const now = new Date().toISOString();
     const newMeeting: Meeting = {
       ...data,
-      id: generateId(),
+      id: generateStorageId('meeting'),
       createdAt: now,
       updatedAt: now,
     };
@@ -99,11 +170,26 @@ export const meetingStorage = {
   },
 
   delete: (id: string): boolean => {
-    const meetings = getFromStorage<Meeting>(STORAGE_KEYS.MEETINGS, []);
-    const filtered = meetings.filter(m => m.id !== id);
-    if (filtered.length === meetings.length) return false;
-    saveToStorage(STORAGE_KEYS.MEETINGS, filtered);
-    return true;
+    // First normalize to ensure we're working with clean data
+    // Read raw data and normalize it
+    const rawMeetings = getFromStorage<Meeting>(STORAGE_KEYS.MEETINGS, []);
+    const [meetings, hasChanges] = normalizeMeetings(rawMeetings);
+
+    // If normalization made changes, save the normalized version first
+    if (hasChanges) {
+      saveToStorage(STORAGE_KEYS.MEETINGS, meetings);
+    }
+
+    const index = meetings.findIndex(m => m.id === id);
+
+    if (index === -1) {
+      return false;
+    }
+
+    meetings.splice(index, 1);
+    const success = saveToStorage(STORAGE_KEYS.MEETINGS, meetings);
+
+    return success;
   },
 
   getRecent: (limit: number = 5): Meeting[] => {
@@ -111,6 +197,48 @@ export const meetingStorage = {
     return meetings
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
       .slice(0, limit);
+  },
+
+  /**
+   * Force repair all meeting data in localStorage
+   * This fixes duplicate IDs, legacy timestamp IDs, and obvious duplicate records
+   * Can be called manually during development or after data migrations
+   */
+  repair: (): { before: number; after: number; repaired: boolean; details: string[] } => {
+    const rawMeetings = getFromStorage<Meeting>(STORAGE_KEYS.MEETINGS, []);
+    const [normalized, hasChanges] = normalizeMeetings(rawMeetings);
+
+    const details: string[] = [];
+
+    if (hasChanges) {
+      // Find what changed
+      const rawIds = rawMeetings.map(m => m.id);
+      const normalizedIds = normalized.map(m => m.id);
+      const duplicateIds = rawIds.filter((id, index) => rawIds.indexOf(id) !== index);
+
+      if (duplicateIds.length > 0) {
+        details.push(`Fixed ${duplicateIds.length} duplicate IDs: ${duplicateIds.join(', ')}`);
+      }
+
+      if (rawMeetings.length !== normalized.length) {
+        details.push(`Removed ${rawMeetings.length - normalized.length} duplicate records`);
+      }
+
+      saveToStorage(STORAGE_KEYS.MEETINGS, normalized);
+    }
+
+    // Verify no duplicates remain
+    const finalIds = normalized.map(m => m.id);
+    const uniqueIds = new Set(finalIds);
+    const hasDuplicates = finalIds.length !== uniqueIds.size;
+
+
+    return {
+      before: rawMeetings.length,
+      after: normalized.length,
+      repaired: hasChanges,
+      details,
+    };
   },
 };
 
@@ -130,7 +258,7 @@ export const templateStorage = {
     const now = new Date().toISOString();
     const newTemplate: SummaryTemplate = {
       ...data,
-      id: generateId(),
+      id: generateStorageId('template'),
       createdAt: now,
       updatedAt: now,
     };
@@ -215,7 +343,7 @@ export const actionItemStorage = {
     const now = new Date().toISOString();
     const newItem: ActionItem = {
       ...data,
-      id: generateId(),
+      id: generateStorageId('action'),
       createdAt: now,
       updatedAt: now,
     };

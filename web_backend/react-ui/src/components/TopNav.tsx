@@ -3,9 +3,19 @@ import type { PageType } from '../App'
 
 interface TopNavProps {
   currentPage: PageType
+  meetingSearchQuery?: string
+  onMeetingSearchChange?: (query: string) => void
+  templateSearchQuery?: string
+  onTemplateSearchChange?: (query: string) => void
 }
 
-export function TopNav({ currentPage }: TopNavProps) {
+export function TopNav({
+  currentPage,
+  meetingSearchQuery = '',
+  onMeetingSearchChange,
+  templateSearchQuery = '',
+  onTemplateSearchChange
+}: TopNavProps) {
   // Common action buttons for all pages
   const commonActions = (
     <>
@@ -44,6 +54,8 @@ export function TopNav({ currentPage }: TopNavProps) {
             <input
               type="text"
               placeholder="搜索会议名称或参与者..."
+              value={meetingSearchQuery}
+              onChange={(e) => onMeetingSearchChange?.(e.target.value)}
               className="w-full pl-12 pr-4 py-2.5 bg-[#EEF8FC] border border-[#D6E1EA] rounded-xl text-sm text-[#06162E] placeholder:text-[#536172] focus:outline-none focus:ring-2 focus:ring-[#061B35]/20 focus:bg-white transition-all"
             />
           </div>
@@ -64,6 +76,8 @@ export function TopNav({ currentPage }: TopNavProps) {
             <input
               type="text"
               placeholder="搜索模板..."
+              value={templateSearchQuery}
+              onChange={(e) => onTemplateSearchChange?.(e.target.value)}
               className="w-full pl-12 pr-4 py-2.5 bg-[#EEF8FC] border border-[#D6E1EA] rounded-xl text-sm text-[#06162E] placeholder:text-[#536172] focus:outline-none focus:ring-2 focus:ring-[#061B35]/20 focus:bg-white transition-all"
             />
           </div>

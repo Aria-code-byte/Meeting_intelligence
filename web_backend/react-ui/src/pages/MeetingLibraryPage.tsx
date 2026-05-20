@@ -2,47 +2,50 @@ import { useState } from 'react'
 import { SlidersHorizontal, ChevronLeft, ChevronRight, MoreVertical, Trash2, Eye, RotateCcw, Check, X, TrendingUp, Phone, Users, Palette, Megaphone } from 'lucide-react'
 import { StatusBadge } from '../components/StatusBadge'
 import { ActionMenuPortal } from '../components/ActionMenuPortal'
-import type { Meeting, MeetingStatus } from '../App'
+import type { Meeting, MeetingStatus, SummaryTemplate } from '../types/models'
 
 interface MeetingLibraryPageProps {
   meetings: Meeting[]
+  templates: SummaryTemplate[]
+  searchQuery: string
   onMeetingClick: (meeting: Meeting) => void
-  onMeetingDelete: (id: number) => void
-  onMeetingStatusChange: (id: number, status: MeetingStatus) => void
+  onMeetingDelete: (id: string) => void
+  onMeetingStatusChange: (id: string, status: MeetingStatus) => void
 }
 
-const iconMap: Record<string, any> = {
-  1: TrendingUp,
-  2: Phone,
-  3: Users,
-  4: Palette,
-  5: Megaphone,
+const iconOptions = [TrendingUp, Phone, Users, Palette, Megaphone]
+
+// Get icon based on meeting index (consistent for same meeting)
+const getIconForMeeting = (meeting: Meeting, index: number) => {
+  return iconOptions[index % iconOptions.length]
 }
 
-const templateMap: Record<number, string> = {
-  1: '战略规划',
-  2: '销售探索',
-  3: '每日站会',
-  4: '设计评审',
-  5: '项目启动',
+// Get template name based on meeting.templateId
+const getTemplateForMeeting = (meeting: Meeting, templates: SummaryTemplate[]): string => {
+  if (meeting.templateId) {
+    const template = templates.find(t => t.id === meeting.templateId)
+    if (template) {
+      return template.name
+    }
+  }
+  return '通用'
 }
 
 const statusOptions = [
   { value: 'all', label: '全部状态' },
   { value: 'completed', label: '已完成' },
-  { value: 'processing', label: '处理中' },
+  { value: 'transcribing', label: '转录中' },
+  { value: 'summarizing', label: '总结中' },
   { value: 'failed', label: '失败' },
-  { value: 'transcription-completed', label: '转录完成' },
 ]
 
-export function MeetingLibraryPage({ meetings, onMeetingClick, onMeetingDelete, onMeetingStatusChange }: MeetingLibraryPageProps) {
-  const [searchQuery, setSearchQuery] = useState('')
+export function MeetingLibraryPage({ meetings, templates, searchQuery, onMeetingClick, onMeetingDelete, onMeetingStatusChange }: MeetingLibraryPageProps) {
   const [statusFilter, setStatusFilter] = useState('all')
   const [showMonthFilter, setShowMonthFilter] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
-  const [openMenuId, setOpenMenuId] = useState<number | null>(null)
-  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
-  const [regeneratingId, setRegeneratingId] = useState<number | null>(null)
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null)
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
+  const [regeneratingId, setRegeneratingId] = useState<string | null>(null)
   const [menuPosition, setMenuPosition] = useState<{
     top: number
     left: number
@@ -52,7 +55,7 @@ export function MeetingLibraryPage({ meetings, onMeetingClick, onMeetingDelete, 
   const itemsPerPage = 10
 
   // Handle opening action menu with position calculation
-  const handleMenuOpen = (meetingId: number, event: React.MouseEvent<HTMLButtonElement>) => {
+  const handleMenuOpen = (meetingId: string, event: React.MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation()
 
     const rect = event.currentTarget.getBoundingClientRect()
@@ -98,16 +101,16 @@ export function MeetingLibraryPage({ meetings, onMeetingClick, onMeetingDelete, 
   const endIndex = startIndex + itemsPerPage
   const paginatedMeetings = filteredMeetings.slice(startIndex, endIndex)
 
-  const handleDelete = (id: number) => {
+  const handleDelete = (id: string) => {
     onMeetingDelete(id)
     setDeleteConfirmId(null)
     handleMenuClose()
   }
 
-  const handleRegenerate = (id: number) => {
+  const handleRegenerate = (id: string) => {
     setRegeneratingId(id)
     setTimeout(() => {
-      onMeetingStatusChange(id, 'processing')
+      onMeetingStatusChange(id, 'transcribing')
       setRegeneratingId(null)
       handleMenuClose()
     }, 2000)
@@ -127,13 +130,10 @@ export function MeetingLibraryPage({ meetings, onMeetingClick, onMeetingDelete, 
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-4xl font-bold text-[#06162E] mb-2">会议库</h1>
-        <p className="text-lg text-[#536172]">
-          管理和查看您的历史AI会议记录和总结。
-        </p>
-      </div>
+      {/* Page Description */}
+      <p className="text-base text-[#536172]">
+        管理和查看您的历史AI会议记录和总结。
+      </p>
 
       {/* Filters */}
       <div className="flex items-center justify-between gap-3">
@@ -201,18 +201,6 @@ export function MeetingLibraryPage({ meetings, onMeetingClick, onMeetingDelete, 
             本月
           </button>
         </div>
-
-        {/* Search */}
-        <div className="relative w-80">
-          <input
-            type="text"
-            placeholder="搜索会议名称或参与者..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full px-4 py-2.5 pl-10 bg-white border border-[#D6E1EA] rounded-xl text-sm focus:outline-none focus:border-[#061B35] transition-colors"
-          />
-          <SlidersHorizontal className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#536172]" />
-        </div>
       </div>
 
       {/* Table */}
@@ -229,8 +217,8 @@ export function MeetingLibraryPage({ meetings, onMeetingClick, onMeetingDelete, 
             </tr>
           </thead>
           <tbody>
-            {paginatedMeetings.map((meeting) => {
-              const Icon = iconMap[meeting.id] || TrendingUp
+            {paginatedMeetings.map((meeting, paginatedIndex) => {
+              const Icon = getIconForMeeting(meeting, paginatedIndex)
               const showMenu = openMenuId === meeting.id
               const showDeleteConfirm = deleteConfirmId === meeting.id
 
@@ -253,7 +241,7 @@ export function MeetingLibraryPage({ meetings, onMeetingClick, onMeetingDelete, 
                   </td>
                   <td className="py-4 px-6 text-sm text-[#06162E]">{formatDate(meeting.date)}</td>
                   <td className="py-4 px-6 text-sm text-[#06162E]">{meeting.duration}</td>
-                  <td className="py-4 px-6 text-sm text-[#06162E]">{templateMap[meeting.id] || '通用'}</td>
+                  <td className="py-4 px-6 text-sm text-[#06162E]">{getTemplateForMeeting(meeting, templates)}</td>
                   <td className="py-4 px-6">
                     <StatusBadge status={meeting.status} />
                   </td>
