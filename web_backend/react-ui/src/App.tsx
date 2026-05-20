@@ -181,6 +181,9 @@ function App() {
                   onMeetingStatusChange={(id, status) => {
                     updateMeeting(id, { status })
                   }}
+                  onMeetingRename={(id, newTitle) => {
+                    updateMeeting(id, { title: newTitle })
+                  }}
                 />
               )}
 

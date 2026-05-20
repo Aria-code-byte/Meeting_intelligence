@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { SlidersHorizontal, ChevronLeft, ChevronRight, MoreVertical, Trash2, Eye, RotateCcw, Check, X, TrendingUp, Phone, Users, Palette, Megaphone } from 'lucide-react'
+import { useState, useMemo, useEffect } from 'react'
+import { SlidersHorizontal, ChevronLeft, ChevronRight, MoreVertical, Trash2, Eye, RotateCcw, Check, X, TrendingUp, Phone, Users, Palette, Megaphone, Edit2 } from 'lucide-react'
 import { StatusBadge } from '../components/StatusBadge'
 import { ActionMenuPortal } from '../components/ActionMenuPortal'
 import type { Meeting, MeetingStatus, SummaryTemplate } from '../types/models'
@@ -11,6 +11,7 @@ interface MeetingLibraryPageProps {
   onMeetingClick: (meeting: Meeting) => void
   onMeetingDelete: (id: string) => void
   onMeetingStatusChange: (id: string, status: MeetingStatus) => void
+  onMeetingRename?: (id: string, newTitle: string) => void
 }
 
 const iconOptions = [TrendingUp, Phone, Users, Palette, Megaphone]
@@ -33,19 +34,22 @@ const getTemplateForMeeting = (meeting: Meeting, templates: SummaryTemplate[]): 
 
 const statusOptions = [
   { value: 'all', label: '全部状态' },
+  { value: 'uploaded', label: '已上传' },
   { value: 'completed', label: '已完成' },
   { value: 'transcribing', label: '转录中' },
   { value: 'summarizing', label: '总结中' },
   { value: 'failed', label: '失败' },
 ]
 
-export function MeetingLibraryPage({ meetings, templates, searchQuery, onMeetingClick, onMeetingDelete, onMeetingStatusChange }: MeetingLibraryPageProps) {
+export function MeetingLibraryPage({ meetings, templates, searchQuery, onMeetingClick, onMeetingDelete, onMeetingStatusChange, onMeetingRename }: MeetingLibraryPageProps) {
   const [statusFilter, setStatusFilter] = useState('all')
   const [showMonthFilter, setShowMonthFilter] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
   const [regeneratingId, setRegeneratingId] = useState<string | null>(null)
+  const [renamingId, setRenamingId] = useState<string | null>(null)
+  const [renameValue, setRenameValue] = useState('')
   const [menuPosition, setMenuPosition] = useState<{
     top: number
     left: number
@@ -82,17 +86,71 @@ export function MeetingLibraryPage({ meetings, templates, searchQuery, onMeeting
   const handleMenuClose = () => {
     setOpenMenuId(null)
     setMenuPosition(null)
+    setRenamingId(null)
+    setRenameValue('')
+  }
+
+  // 当筛选条件变化时，重置到第一页
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchQuery, statusFilter, showMonthFilter])
+
+  // 处理重命名
+  const handleRenameStart = (meetingId: string, event: React.MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation()
+    const meeting = meetings.find(m => m.id === meetingId)
+    if (meeting) {
+      setRenameValue(meeting.title)
+      setRenamingId(meetingId)
+      handleMenuClose()
+    }
+  }
+
+  const handleRenameSave = (meetingId: string) => {
+    const trimmed = renameValue.trim()
+    if (!trimmed) {
+      alert('会议名称不能为空')
+      return
+    }
+    if (trimmed.length > 80) {
+      alert('会议名称不能超过 80 个字符')
+      return
+    }
+    if (onMeetingRename) {
+      onMeetingRename(meetingId, trimmed)
+    }
+    setRenamingId(null)
+    setRenameValue('')
+  }
+
+  const handleRenameCancel = () => {
+    setRenamingId(null)
+    setRenameValue('')
   }
 
   // Filter meetings
   const filteredMeetings = meetings.filter(meeting => {
+    // 搜索：会议名称、参与者、文件名、模板名称
+    const searchLower = searchQuery.toLowerCase()
+    const templateName = getTemplateForMeeting(meeting, templates)
     const matchesSearch = searchQuery === '' ||
-      meeting.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      meeting.participants.some(p => p.toLowerCase().includes(searchQuery.toLowerCase()))
+      meeting.title.toLowerCase().includes(searchLower) ||
+      meeting.participants.some(p => p.toLowerCase().includes(searchLower)) ||
+      (meeting.audioFileName && meeting.audioFileName.toLowerCase().includes(searchLower)) ||
+      templateName.toLowerCase().includes(searchLower)
 
+    // 状态筛选
     const matchesStatus = statusFilter === 'all' || meeting.status === statusFilter
 
-    return matchesSearch && matchesStatus
+    // 月份筛选
+    let matchesMonth = true
+    if (showMonthFilter) {
+      const meetingDate = new Date(meeting.date)
+      const now = new Date()
+      matchesMonth = meetingDate.getMonth() === now.getMonth() && meetingDate.getFullYear() === now.getFullYear()
+    }
+
+    return matchesSearch && matchesStatus && matchesMonth
   })
 
   // Pagination
@@ -295,6 +353,13 @@ export function MeetingLibraryPage({ meetings, templates, searchQuery, onMeeting
                           <span>查看总结</span>
                         </button>
                         <button
+                          onClick={(e) => handleRenameStart(meeting.id, e)}
+                          className="w-full px-4 py-3 text-left text-sm hover:bg-[#EEF8FC] transition-colors flex items-center gap-3"
+                        >
+                          <Edit2 className="w-4 h-4 text-[#536172]" />
+                          <span>重命名</span>
+                        </button>
+                        <button
                           onClick={() => handleRegenerate(meeting.id)}
                           disabled={regeneratingId === meeting.id}
                           className="w-full px-4 py-3 text-left text-sm hover:bg-[#EEF8FC] transition-colors flex items-center gap-3 disabled:opacity-50"
@@ -321,6 +386,46 @@ export function MeetingLibraryPage({ meetings, templates, searchQuery, onMeeting
             })}
           </tbody>
         </table>
+
+        {/* Rename Dialog */}
+        {renamingId && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={handleRenameCancel}>
+            <div className="bg-white rounded-2xl p-6 w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
+              <h3 className="text-lg font-semibold text-[#06162E] mb-4">重命名会议</h3>
+              <input
+                type="text"
+                value={renameValue}
+                onChange={(e) => setRenameValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    handleRenameSave(renamingId!)
+                  } else if (e.key === 'Escape') {
+                    handleRenameCancel()
+                  }
+                }}
+                placeholder="请输入会议名称（最多 80 个字符）"
+                maxLength={80}
+                className="w-full px-4 py-3 border border-[#D6E1EA] rounded-xl text-sm text-[#06162E] placeholder:text-[#536172] focus:outline-none focus:border-[#061B35] focus:ring-2 focus:ring-[#061B35]/20 transition-all"
+                autoFocus
+              />
+              <div className="flex items-center justify-end gap-3 mt-4">
+                <button
+                  onClick={handleRenameCancel}
+                  className="px-4 py-2 border border-[#D6E1EA] rounded-lg text-sm text-[#06162E] hover:bg-[#EEF8FC] transition-colors"
+                >
+                  取消
+                </button>
+                <button
+                  onClick={() => handleRenameSave(renamingId!)}
+                  disabled={!renameValue.trim()}
+                  className="px-4 py-2 bg-[#061B35] text-white rounded-lg text-sm hover:bg-[#08213F] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  保存
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Pagination */}
         {filteredMeetings.length > 0 && (
@@ -375,7 +480,17 @@ export function MeetingLibraryPage({ meetings, templates, searchQuery, onMeeting
 
         {filteredMeetings.length === 0 && (
           <div className="py-16 text-center">
-            <p className="text-[#536172]">没有找到匹配的会议记录</p>
+            {meetings.length === 0 ? (
+              <>
+                <p className="text-lg font-medium text-[#06162E] mb-2">暂无会议记录</p>
+                <p className="text-sm text-[#536172]">上传会议文件后，会议会显示在这里。</p>
+              </>
+            ) : (
+              <>
+                <p className="text-lg font-medium text-[#06162E] mb-2">没有找到符合条件的会议</p>
+                <p className="text-sm text-[#536172]">请调整搜索关键词或筛选条件。</p>
+              </>
+            )}
           </div>
         )}
       </div>

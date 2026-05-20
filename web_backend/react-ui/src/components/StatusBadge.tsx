@@ -1,10 +1,40 @@
-import { CheckCircle2, Clock, XCircle, FileText } from 'lucide-react'
+import { CheckCircle2, Clock, XCircle, FileText, Upload } from 'lucide-react'
 
 interface StatusBadgeProps {
   status: string
 }
 
 const statusConfig = {
+  'uploaded': {
+    label: '已上传',
+    bgColor: 'bg-[#FFF5EB]',
+    textColor: 'text-[#B86E04]',
+    icon: Upload,
+  },
+  'transcribing': {
+    label: '转录中',
+    bgColor: 'bg-[#E9F3FF]',
+    textColor: 'text-[#061B35]',
+    icon: Clock,
+  },
+  'summarizing': {
+    label: '总结中',
+    bgColor: 'bg-[#F0E6FF]',
+    textColor: 'text-[#6B46FF]',
+    icon: Clock,
+  },
+  'completed': {
+    label: '已完成',
+    bgColor: 'bg-[#E9F3FF]',
+    textColor: 'text-[#061B35]',
+    icon: CheckCircle2,
+  },
+  'failed': {
+    label: '失败',
+    bgColor: 'bg-[#FFE7E7]',
+    textColor: 'text-[#FF6B6B]',
+    icon: XCircle,
+  },
   'summary-completed': {
     label: '总结完成',
     bgColor: 'bg-[#E9F3FF]',
@@ -16,12 +46,6 @@ const statusConfig = {
     bgColor: 'bg-[#FFF5EB]',
     textColor: 'text-[#B86E04]',
     icon: Clock,
-  },
-  'failed': {
-    label: '失败',
-    bgColor: 'bg-[#FFE7E7]',
-    textColor: 'text-[#FF6B6B]',
-    icon: XCircle,
   },
   'transcription-completed': {
     label: '转录完成',
