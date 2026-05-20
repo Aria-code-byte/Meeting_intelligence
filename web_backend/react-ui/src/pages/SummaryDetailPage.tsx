@@ -26,9 +26,27 @@ export function SummaryDetailPage({ currentPage, meeting, templates, onBack }: S
 
   // Get template name for this meeting
   const getTemplateName = () => {
-    if (!meeting?.templateId) return '未知模板'
-    const template = templates.find(t => t.id === meeting.templateId)
-    return template?.name || '未知模板'
+    if (!meeting) return '未知模板'
+
+    // 优先使用模板快照名称
+    if ((meeting as any).templateSnapshot?.name) {
+      return (meeting as any).templateSnapshot.name
+    }
+
+    // 其次使用保存的模板名称
+    if ((meeting as any).templateName) {
+      return (meeting as any).templateName
+    }
+
+    // 然后从模板列表查找
+    if (meeting.templateId) {
+      const template = templates.find(t => t.id === meeting.templateId)
+      if (template) {
+        return template.name
+      }
+    }
+
+    return '未知模板'
   }
 
   const sidebarItems = [
