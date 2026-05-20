@@ -6,21 +6,28 @@ interface TopNavProps {
 }
 
 export function TopNav({ currentPage }: TopNavProps) {
+  // Common action buttons for all pages
+  const commonActions = (
+    <>
+      <button className="w-10 h-10 rounded-lg bg-[#DCEBFF] text-[#061B35] flex items-center justify-center hover:bg-[#CFE5FF] transition-colors" title="通知">
+        <Bell className="w-5 h-5" />
+      </button>
+      <button className="w-10 h-10 rounded-lg bg-[#DCEBFF] text-[#061B35] flex items-center justify-center hover:bg-[#CFE5FF] transition-colors" title="帮助">
+        <HelpCircle className="w-5 h-5" />
+      </button>
+      <button className="w-10 h-10 bg-[#061B35] rounded-lg flex items-center justify-center" title="用户账户">
+        <span className="text-white font-medium">U</span>
+      </button>
+    </>
+  )
+
   // Dashboard shows "工作台" without tabs
   if (currentPage === 'dashboard') {
     return (
       <div className="h-16 bg-white border-b border-[#D6E1EA] flex items-center justify-between px-9">
         <h1 className="text-2xl font-semibold text-[#06162E]">工作台</h1>
         <div className="flex items-center gap-3">
-          <button className="w-10 h-10 rounded-lg bg-[#DCEBFF] text-[#061B35] flex items-center justify-center hover:bg-[#CFE5FF] transition-colors">
-            <Bell className="w-5 h-5" />
-          </button>
-          <button className="w-10 h-10 rounded-lg bg-[#DCEBFF] text-[#061B35] flex items-center justify-center hover:bg-[#CFE5FF] transition-colors">
-            <HelpCircle className="w-5 h-5" />
-          </button>
-          <button className="w-10 h-10 bg-[#061B35] rounded-lg flex items-center justify-center">
-            <span className="text-white font-medium">U</span>
-          </button>
+          {commonActions}
         </div>
       </div>
     )
@@ -40,16 +47,7 @@ export function TopNav({ currentPage }: TopNavProps) {
               className="w-full pl-12 pr-4 py-2.5 bg-[#EEF8FC] border border-[#D6E1EA] rounded-xl text-sm text-[#06162E] placeholder:text-[#536172] focus:outline-none focus:ring-2 focus:ring-[#061B35]/20 focus:bg-white transition-all"
             />
           </div>
-          <button className="w-10 h-10 rounded-lg bg-[#DCEBFF] text-[#061B35] flex items-center justify-center hover:bg-[#CFE5FF] transition-colors">
-            <Bell className="w-5 h-5" />
-          </button>
-          <button className="w-10 h-10 rounded-lg bg-[#DCEBFF] text-[#061B35] flex items-center justify-center hover:bg-[#CFE5FF] transition-colors">
-            <HelpCircle className="w-5 h-5" />
-          </button>
-          <button className="flex items-center gap-2 px-5 py-2.5 bg-[#061B35] text-white rounded-lg hover:bg-[#08213F] transition-colors">
-            <Download className="w-4 h-4" />
-            <span className="text-sm font-medium">Export</span>
-          </button>
+          {commonActions}
         </div>
       </div>
     )
@@ -73,12 +71,7 @@ export function TopNav({ currentPage }: TopNavProps) {
             <Plus className="w-4 h-4" />
             <span className="text-sm font-medium">新建模板</span>
           </button>
-          <button className="w-10 h-10 rounded-lg bg-[#DCEBFF] text-[#061B35] flex items-center justify-center hover:bg-[#CFE5FF] transition-colors">
-            <Bell className="w-5 h-5" />
-          </button>
-          <button className="w-10 h-10 bg-[#061B35] rounded-lg flex items-center justify-center">
-            <span className="text-white font-medium">U</span>
-          </button>
+          {commonActions}
         </div>
       </div>
     )
@@ -96,16 +89,11 @@ export function TopNav({ currentPage }: TopNavProps) {
         </h1>
       </div>
       <div className="flex items-center gap-3">
-        <button className="w-10 h-10 rounded-lg bg-[#DCEBFF] text-[#061B35] flex items-center justify-center hover:bg-[#CFE5FF] transition-colors">
-          <Bell className="w-5 h-5" />
-        </button>
-        <button className="w-10 h-10 rounded-lg bg-[#DCEBFF] text-[#061B35] flex items-center justify-center hover:bg-[#CFE5FF] transition-colors">
-          <HelpCircle className="w-5 h-5" />
-        </button>
         <button className="flex items-center gap-2 px-5 py-2.5 bg-[#061B35] text-white rounded-lg hover:bg-[#08213F] transition-colors">
           <Download className="w-4 h-4" />
           <span className="text-sm font-medium">Export</span>
         </button>
+        {commonActions}
       </div>
     </div>
   )

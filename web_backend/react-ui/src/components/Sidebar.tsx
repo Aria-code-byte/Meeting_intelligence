@@ -18,6 +18,7 @@ interface SidebarProps {
   currentPage: PageType
   onPageChange: (page: PageType) => void
   showDetailVariant?: boolean
+  forceHighlight?: PageType
 }
 
 interface MenuItem {
@@ -52,8 +53,9 @@ const bottomMenus: BottomMenuItem[] = [
   { id: 'account', label: 'Account', icon: User },
 ]
 
-export function Sidebar({ currentPage, onPageChange, showDetailVariant }: SidebarProps) {
+export function Sidebar({ currentPage, onPageChange, showDetailVariant, forceHighlight }: SidebarProps) {
   const menus = showDetailVariant ? detailMenus : mainMenus
+  const activePage = forceHighlight || currentPage
 
   return (
     <div className="w-[300px] h-screen bg-[#E4F0F8] flex flex-col border-r border-[#D6E1EA]">
@@ -74,7 +76,7 @@ export function Sidebar({ currentPage, onPageChange, showDetailVariant }: Sideba
       <nav className="flex-1 p-4 space-y-2">
         {menus.map((menu) => {
           const Icon = menu.icon
-          const isActive = currentPage === menu.id
+          const isActive = activePage === menu.id
 
           return (
             <button

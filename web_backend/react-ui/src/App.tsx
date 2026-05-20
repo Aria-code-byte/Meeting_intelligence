@@ -1,26 +1,31 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Sidebar } from './components/Sidebar'
 import { TopNav } from './components/TopNav'
 import { DashboardPage } from './pages/DashboardPage'
 import { MeetingLibraryPage } from './pages/MeetingLibraryPage'
 import { TemplatePage } from './pages/TemplatePage'
 import { SummaryDetailPage } from './pages/SummaryDetailPage'
+import { useMeetings, useTemplates } from './store/useAppStore'
+import type { Meeting, SummaryTemplate } from './types/models'
 
 export type PageType = 'dashboard' | 'meetings' | 'templates' | 'summary' | 'recordings' | 'action' | 'library'
 
-export type MeetingStatus = 'completed' | 'processing' | 'failed' | 'transcription-completed'
+// Legacy type aliases for compatibility with existing components
+export type MeetingStatus = Meeting['status']
 
-export interface Meeting {
+// Map new Meeting model to legacy component interface
+export interface LegacyMeeting {
   id: number
   title: string
   date: string
   duration: string
-  status: MeetingStatus
+  status: Meeting['status']
   progress: number
   participants: string[]
 }
 
-export interface Template {
+// Map new Template model to legacy component interface
+export interface LegacyTemplate {
   id: number
   title: string
   description: string
@@ -29,106 +34,18 @@ export interface Template {
   tags: string[]
 }
 
-export interface Stats {
-  timeSaved: string
-  actionItems: number
-  transcripts: number
-}
-
 function App() {
   const [currentPage, setCurrentPage] = useState<PageType>('dashboard')
   const [currentMeeting, setCurrentMeeting] = useState<Meeting | null>(null)
 
-  // Shared state
-  const [meetings, setMeetings] = useState<Meeting[]>([
-    {
-      id: 1,
-      title: 'Q3 Product Strategy Sync',
-      date: '2024-10-24',
-      duration: '45m',
-      status: 'completed',
-      progress: 100,
-      participants: ['Alice', 'Bob', 'Charlie']
-    },
-    {
-      id: 2,
-      title: 'Interview: Senior Designer',
-      date: '2024-10-25',
-      duration: '1h 12m',
-      status: 'processing',
-      progress: 68,
-      participants: ['David', 'Eve']
-    },
-    {
-      id: 3,
-      title: 'Marketing Campaign Kickoff',
-      date: '2024-10-22',
-      duration: '30m',
-      status: 'completed',
-      progress: 100,
-      participants: ['Frank', 'Grace', 'Heidi']
-    }
-  ])
-
-  const [templates, setTemplates] = useState<Template[]>([
-    {
-      id: 1,
-      title: '通用会议模板',
-      description: '适用于大多数商务会议，包含会议概要、关键决策和行动项',
-      category: 'general',
-      isBuiltin: true,
-      tags: ['通用', '商务']
-    },
-    {
-      id: 2,
-      title: '技术评审模板',
-      description: '专注于技术讨论和决策，包含技术细节和实施计划',
-      category: 'technical',
-      isBuiltin: true,
-      tags: ['技术', '开发']
-    },
-    {
-      id: 3,
-      title: '面试记录模板',
-      description: '用于面试记录和评估，包含候选人信息和评分',
-      category: 'interview',
-      isBuiltin: true,
-      tags: ['HR', '面试']
-    }
-  ])
-
-  const [stats, setStats] = useState<Stats>({
-    timeSaved: '12.5h',
-    actionItems: 84,
-    transcripts: 23
-  })
+  // Use new data store hooks
+  const { meetings, loading: meetingsLoading, createMeeting, deleteMeeting, updateMeeting, getRecentMeetings } = useMeetings()
+  const { templates, loading: templatesLoading, createTemplate, deleteTemplate } = useTemplates()
 
   // Processing state for dashboard
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [processingStage, setProcessingStage] = useState<'idle' | 'selected' | 'uploading' | 'transcribing' | 'cleaning' | 'summarizing' | 'completed' | 'failed'>('idle')
   const [processingProgress, setProcessingProgress] = useState(0)
-
-  // CRUD operations
-  const deleteMeeting = (id: number) => {
-    setMeetings(prev => prev.filter(m => m.id !== id))
-  }
-
-  const deleteTemplate = (id: number) => {
-    setTemplates(prev => prev.filter(t => t.id !== id))
-  }
-
-  const addTemplate = (template: Omit<Template, 'id'>) => {
-    const newId = Math.max(...templates.map(t => t.id), 0) + 1
-    setTemplates(prev => [...prev, { ...template, id: newId }])
-  }
-
-  const updateStats = (increment: { actionItems?: number; transcripts?: number }) => {
-    setStats(prev => ({
-      ...prev,
-      actionItems: prev.actionItems + (increment.actionItems || 0),
-      transcripts: prev.transcripts + (increment.transcripts || 0)
-    }))
-  }
 
   const handlePageChange = (page: PageType) => {
     setCurrentPage(page)
@@ -139,7 +56,58 @@ function App() {
     setCurrentPage('summary')
   }
 
-  const shouldShowDetailSidebar = currentPage === 'summary' || currentPage === 'recordings' || currentPage === 'action' || currentPage === 'library'
+  const shouldShowDetailSidebar = currentPage === 'recordings' || currentPage === 'action' || currentPage === 'library'
+
+  // Convert new data models to legacy format for existing components
+  const legacyMeetings: LegacyMeeting[] = meetings.map((m, index) => ({
+    id: parseInt(m.id) || index + 1,
+    title: m.title,
+    date: m.date,
+    duration: m.duration,
+    status: m.status,
+    progress: m.progress || (m.status === 'completed' ? 100 : m.status === 'processing' ? 50 : 0),
+    participants: m.participants,
+  }))
+
+  const legacyTemplates: LegacyTemplate[] = templates.map((t, index) => ({
+    id: parseInt(t.id) || index + 1,
+    title: t.name,
+    description: t.description,
+    category: t.category || 'general',
+    isBuiltin: t.isBuiltIn,
+    tags: t.tags,
+  }))
+
+  // Wrap delete functions to work with legacy numeric IDs
+  const handleDeleteMeeting = (id: number) => {
+    // Find the meeting by numeric ID and delete using string ID
+    const meeting = meetings.find((m, index) => parseInt(m.id) || (index + 1) === id)
+    if (meeting) {
+      return deleteMeeting(meeting.id)
+    }
+    return false
+  }
+
+  const handleDeleteTemplate = (id: number) => {
+    // Find the template by numeric ID and delete using string ID
+    const template = templates.find((t, index) => parseInt(t.id) || (index + 1) === id)
+    if (template) {
+      return deleteTemplate(template.id)
+    }
+    return false
+  }
+
+  const handleAddTemplate = (template: Omit<LegacyTemplate, 'id'>) => {
+    return createTemplate({
+      name: template.title,
+      description: template.description,
+      type: template.isBuiltin ? 'built-in' : 'custom',
+      category: template.category,
+      tags: template.tags,
+      isDefault: false,
+      isBuiltIn: template.isBuiltin,
+    })
+  }
 
   return (
     <div className="flex h-screen bg-[#EEF8FC]">
@@ -147,57 +115,90 @@ function App() {
         currentPage={currentPage}
         onPageChange={handlePageChange}
         showDetailVariant={shouldShowDetailSidebar}
+        forceHighlight={currentPage === 'summary' ? 'meetings' : undefined}
       />
 
       <div className="flex-1 flex flex-col overflow-hidden">
         <TopNav currentPage={currentPage} />
 
         <main className="flex-1 overflow-auto px-9 py-8">
-          {currentPage === 'dashboard' && (
-            <DashboardPage
-              meetings={meetings}
-              stats={stats}
-              selectedFile={selectedFile}
-              processingStage={processingStage}
-              processingProgress={processingProgress}
-              onFileSelect={setSelectedFile}
-              onProcessingStageChange={setProcessingStage}
-              onProcessingProgressChange={setProcessingProgress}
-              onMeetingAdd={(meeting) => {
-                setMeetings(prev => [meeting, ...prev])
-                updateStats({ actionItems: 5, transcripts: 1 })
-              }}
-              onMeetingClick={handleMeetingClick}
-            />
-          )}
+          {meetingsLoading || templatesLoading ? (
+            <div className="flex items-center justify-center h-full">
+              <div className="text-[#536172]">加载中...</div>
+            </div>
+          ) : (
+            <>
+              {currentPage === 'dashboard' && (
+                <DashboardPage
+                  meetings={legacyMeetings}
+                  selectedFile={selectedFile}
+                  processingStage={processingStage}
+                  processingProgress={processingProgress}
+                  onFileSelect={setSelectedFile}
+                  onProcessingStageChange={setProcessingStage}
+                  onProcessingProgressChange={setProcessingProgress}
+                  onMeetingAdd={(meeting) => {
+                    // Convert legacy meeting to new format
+                    const newMeeting = createMeeting({
+                      title: meeting.title,
+                      date: meeting.date,
+                      duration: meeting.duration,
+                      participants: meeting.participants,
+                      status: meeting.status,
+                      progress: meeting.progress,
+                    })
+                  }}
+                  onMeetingClick={(legacyMeeting) => {
+                    // Convert legacy meeting back to new format
+                    const meeting = meetings.find((m, index) =>
+                      parseInt(m.id) || (index + 1) === legacyMeeting.id
+                    )
+                    if (meeting) {
+                      handleMeetingClick(meeting)
+                    }
+                  }}
+                />
+              )}
 
-          {currentPage === 'meetings' && (
-            <MeetingLibraryPage
-              meetings={meetings}
-              onMeetingClick={handleMeetingClick}
-              onMeetingDelete={deleteMeeting}
-              onMeetingStatusChange={(id, status) => {
-                setMeetings(prev => prev.map(m =>
-                  m.id === id ? { ...m, status } : m
-                ))
-              }}
-            />
-          )}
+              {currentPage === 'meetings' && (
+                <MeetingLibraryPage
+                  meetings={legacyMeetings}
+                  onMeetingClick={(legacyMeeting) => {
+                    const meeting = meetings.find((m, index) =>
+                      parseInt(m.id) || (index + 1) === legacyMeeting.id
+                    )
+                    if (meeting) {
+                      handleMeetingClick(meeting)
+                    }
+                  }}
+                  onMeetingDelete={handleDeleteMeeting}
+                  onMeetingStatusChange={(id, status) => {
+                    const meeting = meetings.find((m, index) =>
+                      parseInt(m.id) || (index + 1) === id
+                    )
+                    if (meeting) {
+                      updateMeeting(meeting.id, { status })
+                    }
+                  }}
+                />
+              )}
 
-          {currentPage === 'templates' && (
-            <TemplatePage
-              templates={templates}
-              onTemplateAdd={addTemplate}
-              onTemplateDelete={deleteTemplate}
-            />
-          )}
+              {currentPage === 'templates' && (
+                <TemplatePage
+                  templates={legacyTemplates}
+                  onTemplateAdd={handleAddTemplate}
+                  onTemplateDelete={handleDeleteTemplate}
+                />
+              )}
 
-          {(currentPage === 'summary' || currentPage === 'recordings' || currentPage === 'action' || currentPage === 'library') && (
-            <SummaryDetailPage
-              currentPage={currentPage}
-              meeting={currentMeeting}
-              onBack={() => setCurrentPage('dashboard')}
-            />
+              {(currentPage === 'summary' || currentPage === 'recordings' || currentPage === 'action' || currentPage === 'library') && (
+                <SummaryDetailPage
+                  currentPage={currentPage}
+                  meeting={currentMeeting}
+                  onBack={() => setCurrentPage('dashboard')}
+                />
+              )}
+            </>
           )}
         </main>
       </div>

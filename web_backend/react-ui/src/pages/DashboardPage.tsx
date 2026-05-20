@@ -1,12 +1,10 @@
 import { useRef, useState, useEffect } from 'react'
 import { Upload, Lock, FileText, BarChart3, TrendingUp, Briefcase, X, CheckCircle, Play, Pause, RotateCcw } from 'lucide-react'
-import { StatCard } from '../components/StatCard'
 import { RecentMeetingCard } from '../components/RecentMeetingCard'
-import type { Meeting, Stats } from '../App'
+import type { Meeting } from '../App'
 
 interface DashboardPageProps {
   meetings: Meeting[]
-  stats: Stats
   selectedFile: File | null
   processingStage: 'idle' | 'selected' | 'uploading' | 'transcribing' | 'cleaning' | 'summarizing' | 'completed' | 'failed'
   processingProgress: number
@@ -26,7 +24,6 @@ const steps = [
 
 export function DashboardPage({
   meetings,
-  stats,
   selectedFile,
   processingStage,
   processingProgress,
@@ -448,31 +445,6 @@ export function DashboardPage({
             </div>
           </div>
         )}
-
-        {/* Stats Grid */}
-        <div className="w-[690px] grid grid-cols-3 gap-4 mt-6">
-          <StatCard
-            id={1}
-            icon={TrendingUp}
-            label="节省时间"
-            value={stats.timeSaved}
-            color="bg-[#DCEBFF]"
-          />
-          <StatCard
-            id={2}
-            icon={CheckCircle}
-            label="提取行动项"
-            value={stats.actionItems.toString()}
-            color="bg-[#CFE5FF]"
-          />
-          <StatCard
-            id={3}
-            icon={FileText}
-            label="生成文字稿"
-            value={stats.transcripts.toString()}
-            color="bg-[#E9F3FF]"
-          />
-        </div>
       </div>
 
       {/* Right Sidebar - Recent Meetings */}

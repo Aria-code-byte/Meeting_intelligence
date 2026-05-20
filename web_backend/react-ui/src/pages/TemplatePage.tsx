@@ -94,20 +94,11 @@ export function TemplatePage({ templates, onTemplateAdd, onTemplateDelete }: Tem
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-4xl font-bold text-[#06162E] mb-2">模板管理</h1>
-          <p className="text-lg text-[#536172]">
-            创建、编辑和管理不同会议场景下的总结模板。
-          </p>
-        </div>
-        <button
-          onClick={() => setShowNewTemplateModal(true)}
-          className="flex items-center gap-2 px-5 py-3 bg-[#061B35] text-white rounded-xl hover:bg-[#08213F] transition-colors"
-        >
-          <Plus className="w-5 h-5" />
-          <span className="font-medium">新建模板</span>
-        </button>
+      <div>
+        <h1 className="text-4xl font-bold text-[#06162E] mb-2">模板管理</h1>
+        <p className="text-lg text-[#536172]">
+          创建、编辑和管理不同会议场景下的总结模板。
+        </p>
       </div>
 
       {/* Category Tabs */}
