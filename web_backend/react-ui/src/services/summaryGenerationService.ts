@@ -133,25 +133,18 @@ export async function generateMeetingSummary(input: GenerateSummaryInput): Promi
     }
 
   } catch (error) {
-    console.warn('[SummaryGenerationService] 后端总结失败，使用fallback模式:', error);
+    console.error('[SummaryGenerationService] 后端总结失败:', error);
 
-    // 3. 回退到本地生成
-    const startTime = Date.now();
-    const summary = generateFallbackSummaryInternal(transcript, template, {
-      title: `会议 ${meetingId}`,
-      date: new Date().toISOString().split('T')[0],
-      duration: '待填写',
-      participants: [],
-    });
-    const processingTime = Date.now() - startTime;
+    // 不再静默回退到本地生成，明确返回错误
+    const errorMessage = error instanceof Error ? error.message : '后端总结服务调用失败';
 
     return {
-      summary,
-      provider: 'fallback',
-      isFallback: true,
+      summary: '',
+      provider: 'backend',
+      isFallback: false,
+      error: errorMessage,
       templateId: template.id,
       templateName: template.name,
-      processingTime,
     };
   }
 }

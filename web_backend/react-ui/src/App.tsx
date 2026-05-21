@@ -194,11 +194,12 @@ function App() {
           } : undefined,
         })
       } catch (error) {
+        console.error('[App.tsx] 总结服务调用失败:', error);
         summaryResult = {
           summary: '',
-          provider: 'fallback',
-          isFallback: true,
-          error: '总结服务暂不可用'
+          provider: 'backend',
+          isFallback: false,
+          error: error instanceof Error ? error.message : '总结服务调用失败'
         }
       }
 
