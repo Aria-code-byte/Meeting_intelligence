@@ -1,28 +1,85 @@
-import { useState } from 'react'
-import { ArrowLeft, Copy, RefreshCw, Download, CheckCircle2, FileText, Users, Calendar, Clock, AlertCircle, Save } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { ArrowLeft, Copy, RefreshCw, Download, CheckCircle2, FileText, Users, Calendar, Clock, AlertCircle, Save, Edit2, X, Plus, Trash2, FileDown } from 'lucide-react'
 import { ActionItemCard } from '../components/ActionItemCard'
-import { useMeetings } from '../store/useAppStore'
-import { generateFallbackSummary, validateTranscript } from '../services/summaryGenerationService'
+import { useMeetings, useActionItems } from '../store/useAppStore'
+import { generateFallbackSummary, validateTranscript, generateMeetingSummary, markSummaryAsManual } from '../services/summaryGenerationService'
+import { exportMeeting, canExport, type ExportFormat } from '../services/exportService'
+import { getUserSettings } from '../services/settingsService'
 import type { PageType } from '../App'
-import type { Meeting } from '../types/models'
+import type { Meeting, ActionItem } from '../types/models'
 
 interface SummaryDetailPageProps {
   currentPage: PageType
-  meeting: Meeting | null
+  meetingId: string | null
   templates: any[]
   onBack: () => void
 }
 
 type TabType = 'summary' | 'transcript' | 'action' | 'info'
 
-export function SummaryDetailPage({ currentPage, meeting, templates, onBack }: SummaryDetailPageProps) {
+export function SummaryDetailPage({ currentPage, meetingId, templates, onBack }: SummaryDetailPageProps) {
+  const { getMeetingById, updateMeeting } = useMeetings()
+  const [meeting, setMeeting] = useState<Meeting | null>(null)
+  const [showExportDialog, setShowExportDialog] = useState(false)
+  const userSettings = getUserSettings()
+  const [selectedFormat, setSelectedFormat] = useState<ExportFormat>(userSettings.exportFormatPreference)
+  const [includeTranscript, setIncludeTranscript] = useState(userSettings.includeTranscriptByDefault)
+
+  // Reset export options when dialog opens
+  useEffect(() => {
+    if (showExportDialog) {
+      const settings = getUserSettings()
+      setSelectedFormat(settings.exportFormatPreference)
+      setIncludeTranscript(settings.includeTranscriptByDefault)
+    }
+  }, [showExportDialog])
+
+  // Load meeting from store when meetingId changes or when meeting list updates
+  useEffect(() => {
+    if (meetingId) {
+      const loadedMeeting = getMeetingById(meetingId)
+      console.log('[SummaryDetailPage] 加载会议数据:', {
+        meetingId,
+        summaryProvider: loadedMeeting?.summaryProvider,
+        summaryIsFallback: loadedMeeting?.summaryIsFallback,
+        transcriptionProvider: loadedMeeting?.transcriptionProvider,
+        transcriptionIsFallback: loadedMeeting?.transcriptionIsFallback,
+        showBackendBanner: loadedMeeting?.summaryProvider === 'backend' && !loadedMeeting?.summaryIsFallback,
+        showFallbackBanner: loadedMeeting?.summaryProvider === 'fallback' && loadedMeeting?.summaryIsFallback,
+        showManualBanner: loadedMeeting?.summaryProvider === 'manual',
+      })
+      setMeeting(loadedMeeting)
+    } else {
+      setMeeting(null)
+    }
+  }, [meetingId, getMeetingById])
+
+  // Update local meeting state when data is modified (for immediate UI feedback)
+  const refreshMeeting = useCallback(() => {
+    if (meetingId) {
+      const loadedMeeting = getMeetingById(meetingId)
+      setMeeting(loadedMeeting)
+    }
+  }, [meetingId, getMeetingById])
   const [activeTab, setActiveTab] = useState<TabType>('summary')
   const [copySuccess, setCopySuccess] = useState(false)
   const [regenerating, setRegenerating] = useState(false)
   const [manualTranscript, setManualTranscript] = useState('')
   const [isEditingTranscript, setIsEditingTranscript] = useState(false)
 
-  const { updateMeeting } = useMeetings()
+  // 编辑状态
+  const [isEditingTitle, setIsEditingTitle] = useState(false)
+  const [editedTitle, setEditedTitle] = useState('')
+  const [isEditingSummary, setIsEditingSummary] = useState(false)
+  const [editedSummary, setEditedSummary] = useState('')
+  const [newActionContent, setNewActionContent] = useState('')
+  const [isAddingAction, setIsAddingAction] = useState(false)
+  const [editingActionId, setEditingActionId] = useState<string | null>(null)
+  const [editActionContent, setEditActionContent] = useState('')
+  const [editActionOwner, setEditActionOwner] = useState('')
+  const [editActionDueDate, setEditActionDueDate] = useState('')
+
+  const { actionItems, createActionItem, updateActionItem, deleteActionItem } = useActionItems()
 
   // Get template name for this meeting
   const getTemplateName = () => {
@@ -49,10 +106,13 @@ export function SummaryDetailPage({ currentPage, meeting, templates, onBack }: S
     return '未知模板'
   }
 
+  // Filter action items for current meeting
+  const meetingActions = meeting ? actionItems.filter(a => a.meetingId === meeting.id) : []
+
   const sidebarItems = [
     { id: 'summary' as TabType, label: 'AI 总结', count: null },
     { id: 'transcript' as TabType, label: '完整文字稿', count: null },
-    { id: 'action' as TabType, label: '待办事项', count: 0 },
+    { id: 'action' as TabType, label: '待办事项', count: meetingActions.length },
     { id: 'info' as TabType, label: '会议信息', count: null },
   ]
 
@@ -81,41 +141,32 @@ export function SummaryDetailPage({ currentPage, meeting, templates, onBack }: S
   }
 
   const handleDownload = () => {
-    if (!meeting) return
-
-    let content = ''
-    let filename = ''
-
-    if (activeTab === 'summary' && meeting.summary) {
-      content = meeting.summary
-      filename = `summary_${meeting.id}.txt`
-    } else if (activeTab === 'transcript' && meeting.transcript) {
-      content = meeting.transcript
-      filename = `transcript_${meeting.id}.txt`
-    } else if (activeTab === 'info') {
-      content = `会议标题：${meeting.title}\n日期：${meeting.date}\n模板：${getTemplateName()}\n状态：${meeting.status}`
-      filename = `meeting_info_${meeting.id}.txt`
+    if (!meeting || !canExport(meeting)) {
+      alert('当前会议没有可导出的内容，请先生成总结或添加文字稿。')
+      return
     }
-
-    if (!content) return
-
-    const blob = new Blob([content], { type: 'text/plain' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = filename
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
+    setShowExportDialog(true)
   }
 
-  const handleRegenerate = () => {
+  const handleConfirmExport = () => {
+    if (!meeting) return
+
+    exportMeeting(meeting, meetingActions, {
+      format: selectedFormat,
+      includeTranscript: includeTranscript,
+      includeActionItems: true,
+      allTemplates: templates,
+    })
+
+    setShowExportDialog(false)
+  }
+
+  const handleRegenerate = async () => {
     if (!meeting) return
 
     // Check if transcript exists
-    if (!meeting.transcript && !isEditingTranscript) {
-      alert('请先补充会议文字稿，再重新生成总结。')
+    if (!meeting.transcript || meeting.transcript.trim() === '') {
+      alert('当前会议暂无文字稿，无法重新生成总结。\n\n请先在"完整文字稿"标签页添加会议文字稿。')
       setActiveTab('transcript')
       setIsEditingTranscript(true)
       return
@@ -123,31 +174,56 @@ export function SummaryDetailPage({ currentPage, meeting, templates, onBack }: S
 
     setRegenerating(true)
 
-    // Generate summary based on template
-    const template = templates.find(t => t.id === meeting.templateId)
-    if (!template) {
-      alert('未找到会议模板')
+    try {
+      // Template priority: templateSnapshot > templateId lookup
+      let templateToUse = templates.find(t => t.id === meeting.templateId)
+
+      if ((meeting as any).templateSnapshot) {
+        // Use template snapshot if available
+        templateToUse = (meeting as any).templateSnapshot
+      }
+
+      if (!templateToUse) {
+        alert('未找到会议模板，无法生成总结')
+        setRegenerating(false)
+        return
+      }
+
+      // Use the unified summary generation service
+      const summaryResult = await generateMeetingSummary({
+        meetingId: meeting.id,
+        transcript: meeting.transcript,
+        templateSnapshot: templateToUse ? {
+          id: templateToUse.id,
+          name: templateToUse.name,
+          structure: templateToUse.structure,
+          prompt: templateToUse.prompt,
+        } : undefined,
+      })
+
+      if (!summaryResult.summary && summaryResult.error) {
+        alert(summaryResult.error)
+        setRegenerating(false)
+        return
+      }
+
+      // Update meeting with summary and provider info
+      updateMeeting(meeting.id, {
+        summary: summaryResult.summary,
+        summaryProvider: summaryResult.provider,
+        summaryIsFallback: summaryResult.isFallback,
+        status: 'completed',
+        errorMessage: undefined,
+        lastProcessedAt: new Date().toISOString(),
+      })
+
+      setTimeout(() => {
+        setRegenerating(false)
+      }, 500)
+    } catch (error) {
+      alert('生成总结失败，请重试')
       setRegenerating(false)
-      return
     }
-
-    // Use the new summary generation service
-    const summary = generateFallbackSummary({
-      transcript: meeting.transcript || '',
-      template,
-      meeting,
-    })
-
-    // Update meeting
-    updateMeeting(meeting.id, {
-      summary,
-      status: 'completed',
-      errorMessage: undefined,
-    })
-
-    setTimeout(() => {
-      setRegenerating(false)
-    }, 1000)
   }
 
   const handleSaveTranscript = () => {
@@ -182,17 +258,23 @@ export function SummaryDetailPage({ currentPage, meeting, templates, onBack }: S
       return
     }
 
-    // Get template for this meeting
-    const template = templates.find(t => t.id === meeting.templateId)
-    if (!template) {
-      alert('未找到会议模板')
+    // Template priority: templateSnapshot > templateId lookup
+    let templateToUse = templates.find(t => t.id === meeting.templateId)
+
+    if ((meeting as any).templateSnapshot) {
+      // Use template snapshot if available
+      templateToUse = (meeting as any).templateSnapshot
+    }
+
+    if (!templateToUse) {
+      alert('未找到会议模板，无法生成总结')
       return
     }
 
-    // Use the new summary generation service
+    // Use the summary generation service
     const summary = generateFallbackSummary({
       transcript: transcriptToUse,
-      template,
+      template: templateToUse,
       meeting,
     })
 
@@ -213,6 +295,163 @@ export function SummaryDetailPage({ currentPage, meeting, templates, onBack }: S
     setActiveTab('summary')
   }
 
+  // Title edit handlers
+  const handleEditTitle = () => {
+    if (!meeting) return
+    setEditedTitle(meeting.title)
+    setIsEditingTitle(true)
+  }
+
+  const handleSaveTitle = () => {
+    if (!meeting) return
+
+    const trimmedTitle = editedTitle.trim()
+    if (!trimmedTitle) {
+      alert('会议标题不能为空')
+      return
+    }
+
+    if (trimmedTitle.length > 100) {
+      alert('会议标题不能超过 100 个字符')
+      return
+    }
+
+    updateMeeting(meeting.id, { title: trimmedTitle })
+    setIsEditingTitle(false)
+    refreshMeeting()
+  }
+
+  const handleCancelEditTitle = () => {
+    setEditedTitle('')
+    setIsEditingTitle(false)
+  }
+
+  // Summary edit handlers
+  const handleEditSummary = () => {
+    if (!meeting) return
+    setEditedSummary(meeting.summary || '')
+    setIsEditingSummary(true)
+  }
+
+  const handleSaveSummary = () => {
+    if (!meeting) return
+
+    const trimmedSummary = editedSummary.trim()
+    if (trimmedSummary.length > 10000) {
+      alert('总结内容不能超过 10000 个字符')
+      return
+    }
+
+    // Mark as manual if user edited the summary
+    const updateData = {
+      summary: trimmedSummary || undefined,
+      summaryProvider: 'manual' as const,
+      summaryIsFallback: false,
+    }
+
+    updateMeeting(meeting.id, updateData)
+    setIsEditingSummary(false)
+    refreshMeeting()
+  }
+
+  const handleCancelEditSummary = () => {
+    setEditedSummary('')
+    setIsEditingSummary(false)
+  }
+
+  // Action item handlers
+  const handleAddAction = () => {
+    if (!meeting) return
+
+    const trimmedContent = newActionContent.trim()
+    if (!trimmedContent) {
+      alert('请输入待办事项内容')
+      return
+    }
+
+    if (trimmedContent.length > 200) {
+      alert('待办事项内容不能超过 200 个字符')
+      return
+    }
+
+    createActionItem({
+      meetingId: meeting.id,
+      content: trimmedContent,
+      status: 'todo',
+    })
+    setNewActionContent('')
+    setIsAddingAction(false)
+  }
+
+  const handleToggleActionStatus = (actionId: string, currentStatus: ActionItem['status']) => {
+    const nextStatus: ActionItem['status'] =
+      currentStatus === 'todo' ? 'in_progress' :
+      currentStatus === 'in_progress' ? 'done' : 'todo'
+    updateActionItem(actionId, { status: nextStatus })
+  }
+
+  const handleDeleteAction = (actionId: string) => {
+    if (confirm('确定要删除这个待办事项吗？此操作不可撤销。')) {
+      deleteActionItem(actionId)
+    }
+  }
+
+  const handleStartEditAction = (action: ActionItem) => {
+    setEditingActionId(action.id)
+    setEditActionContent(action.content)
+    setEditActionOwner(action.owner || '')
+    setEditActionDueDate(action.dueDate || '')
+  }
+
+  const handleSaveActionEdit = () => {
+    if (!editingActionId) return
+
+    const trimmedContent = editActionContent.trim()
+    if (!trimmedContent) {
+      alert('待办事项内容不能为空')
+      return
+    }
+
+    if (trimmedContent.length > 200) {
+      alert('待办事项内容不能超过 200 个字符')
+      return
+    }
+
+    // Validate due date format if provided
+    if (editActionDueDate) {
+      const dateRegex = /^\d{4}-\d{2}-\d{2}$/
+      if (!dateRegex.test(editActionDueDate)) {
+        alert('请输入有效的截止日期格式（YYYY-MM-DD）')
+        return
+      }
+
+      // Check if date is valid
+      const date = new Date(editActionDueDate)
+      if (isNaN(date.getTime())) {
+        alert('请输入有效的截止日期')
+        return
+      }
+    }
+
+    updateActionItem(editingActionId, {
+      content: trimmedContent,
+      owner: editActionOwner.trim() || undefined,
+      dueDate: editActionDueDate || undefined,
+    })
+
+    setEditingActionId(null)
+    setEditActionContent('')
+    setEditActionOwner('')
+    setEditActionDueDate('')
+  }
+
+  const handleCancelActionEdit = () => {
+    setEditingActionId(null)
+    setEditActionContent('')
+    setEditActionOwner('')
+    setEditActionDueDate('')
+  }
+
   // Show loading state if no meeting
   if (!meeting) {
     return (
@@ -220,11 +459,12 @@ export function SummaryDetailPage({ currentPage, meeting, templates, onBack }: S
         <div className="text-center">
           <AlertCircle className="w-12 h-12 text-[#536172] mx-auto mb-4" />
           <p className="text-[#536172]">未找到会议信息</p>
+          <p className="text-sm text-[#536172] mt-2">该会议可能已被删除或不存在</p>
           <button
             onClick={onBack}
             className="mt-4 px-4 py-2 bg-[#061B35] text-white rounded-lg hover:bg-[#08213F] transition-colors"
           >
-            返回
+            返回会议库
           </button>
         </div>
       </div>
@@ -272,9 +512,50 @@ export function SummaryDetailPage({ currentPage, meeting, templates, onBack }: S
           <span className="inline-block px-3 py-1 bg-[#E9F3FF] text-[#061B35] text-xs rounded-full">
             {getTemplateName()}
           </span>
-          <h1 className="text-3xl font-bold text-[#06162E]">
-            {meeting.title}
-          </h1>
+          <div className="flex items-center gap-3">
+            {isEditingTitle ? (
+              <div className="flex items-center gap-2 flex-1">
+                <input
+                  type="text"
+                  value={editedTitle}
+                  onChange={(e) => setEditedTitle(e.target.value)}
+                  className="flex-1 px-3 py-2 text-3xl font-bold text-[#06162E] border border-[#D6E1EA] rounded-lg focus:outline-none focus:border-[#061B35]"
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleSaveTitle()
+                    if (e.key === 'Escape') handleCancelEditTitle()
+                  }}
+                />
+                <button
+                  onClick={handleSaveTitle}
+                  className="p-2 bg-[#10B981] text-white rounded-lg hover:bg-[#059669] transition-colors"
+                  title="保存"
+                >
+                  <Save className="w-5 h-5" />
+                </button>
+                <button
+                  onClick={handleCancelEditTitle}
+                  className="p-2 bg-[#FF6B6B] text-white rounded-lg hover:bg-[#DC2626] transition-colors"
+                  title="取消"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3 flex-1">
+                <h1 className="text-3xl font-bold text-[#06162E]">
+                  {meeting.title}
+                </h1>
+                <button
+                  onClick={handleEditTitle}
+                  className="p-2 text-[#536172] hover:text-[#061B35] hover:bg-[#EEF8FC] rounded-lg transition-colors"
+                  title="编辑标题"
+                >
+                  <Edit2 className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+          </div>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4 text-sm text-[#536172]">
               <span className="flex items-center gap-1">
@@ -327,16 +608,80 @@ export function SummaryDetailPage({ currentPage, meeting, templates, onBack }: S
         {/* Tab Content */}
         {activeTab === 'summary' && (
           <div className="bg-white rounded-2xl p-6 border-2 border-[#D6E1EA]">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 bg-[#DCEBFF] rounded-lg flex items-center justify-center">
-                <FileText className="w-5 h-5 text-[#061B35]" />
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-[#DCEBFF] rounded-lg flex items-center justify-center">
+                  <FileText className="w-5 h-5 text-[#061B35]" />
+                </div>
+                <h2 className="text-xl font-semibold text-[#06162E]">会议总结</h2>
               </div>
-              <h2 className="text-xl font-semibold text-[#06162E]">会议总结</h2>
+              {meeting.summary && !isEditingSummary && (
+                <button
+                  onClick={handleEditSummary}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm text-[#536172] hover:text-[#061B35] hover:bg-[#EEF8FC] rounded-lg transition-colors"
+                >
+                  <Edit2 className="w-4 h-4" />
+                  编辑
+                </button>
+              )}
             </div>
 
-            {meeting.summary ? (
-              <div className="text-[#06162E] leading-relaxed whitespace-pre-line">
-                {meeting.summary}
+            {isEditingSummary ? (
+              <div className="space-y-3">
+                <textarea
+                  value={editedSummary}
+                  onChange={(e) => setEditedSummary(e.target.value)}
+                  className="w-full h-64 px-4 py-3 text-[#06162E] bg-white border border-[#D6E1EA] rounded-xl focus:outline-none focus:border-[#061B35] focus:ring-2 focus:ring-[#061B35]/20 transition-all resize-none text-sm leading-relaxed"
+                  autoFocus
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleSaveSummary}
+                    className="flex items-center gap-2 px-4 py-2 bg-[#10B981] text-white rounded-lg text-sm hover:bg-[#059669] transition-colors"
+                  >
+                    <Save className="w-4 h-4" />
+                    保存
+                  </button>
+                  <button
+                    onClick={handleCancelEditSummary}
+                    className="flex items-center gap-2 px-4 py-2 border border-[#D6E1EA] rounded-lg text-sm text-[#06162E] hover:bg-[#EEF8FC] transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                    取消
+                  </button>
+                </div>
+              </div>
+            ) : meeting.summary ? (
+              <div className="space-y-4">
+                <div className="text-[#06162E] leading-relaxed whitespace-pre-line">
+                  {meeting.summary}
+                </div>
+                {/* 调试日志 */}
+                {console.log('[SummaryDetailPage] 渲染总结区域:', {
+                  summaryProvider: meeting.summaryProvider,
+                  summaryIsFallback: meeting.summaryIsFallback,
+                  backendCondition: meeting.summaryProvider === 'backend' && !meeting.summaryIsFallback,
+                  fallbackCondition: meeting.summaryProvider === 'fallback' && meeting.summaryIsFallback,
+                  manualCondition: meeting.summaryProvider === 'manual',
+                })}
+                {meeting.summaryProvider === 'fallback' && meeting.summaryIsFallback && (
+                  <div className="flex items-start gap-2 px-3 py-2 bg-[#FFF7ED] rounded-lg border border-[#F59E0B] text-xs">
+                    <AlertCircle className="w-4 h-4 text-[#F59E0B] mt-0.5 flex-shrink-0" />
+                    <p className="text-[#F59E0B]">当前总结由本地 fallback 规则生成，尚未接入真实 AI 总结服务</p>
+                  </div>
+                )}
+                {meeting.summaryProvider === 'backend' && !meeting.summaryIsFallback && (
+                  <div className="flex items-start gap-2 px-3 py-2 bg-[#ECFDF5] rounded-lg border border-[#10B981] text-xs">
+                    <CheckCircle2 className="w-4 h-4 text-[#10B981] mt-0.5 flex-shrink-0" />
+                    <p className="text-[#10B981]">当前总结由后端总结服务生成</p>
+                  </div>
+                )}
+                {meeting.summaryProvider === 'manual' && (
+                  <div className="flex items-start gap-2 px-3 py-2 bg-[#EEF8FC] rounded-lg border border-[#061B35] text-xs">
+                    <CheckCircle2 className="w-4 h-4 text-[#061B35] mt-0.5 flex-shrink-0" />
+                    <p className="text-[#061B35]">当前总结已由用户手动编辑</p>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="text-center py-12">
@@ -385,6 +730,12 @@ export function SummaryDetailPage({ currentPage, meeting, templates, onBack }: S
                     <p className="text-sm text-[#06162E] whitespace-pre-line">{paragraph}</p>
                   </div>
                 ))}
+                {meeting.transcriptionProvider === 'fallback' && meeting.transcriptionIsFallback && (
+                  <div className="flex items-start gap-2 px-3 py-2 bg-[#FFF7ED] rounded-lg border border-[#F59E0B] text-xs">
+                    <AlertCircle className="w-4 h-4 text-[#F59E0B] mt-0.5 flex-shrink-0" />
+                    <p className="text-[#F59E0B]">当前文字稿为 fallback 内容，尚未接入真实语音转写服务</p>
+                  </div>
+                )}
               </div>
             ) : !isEditingTranscript ? (
               <div className="text-center py-12">
@@ -440,17 +791,195 @@ export function SummaryDetailPage({ currentPage, meeting, templates, onBack }: S
 
         {activeTab === 'action' && (
           <div className="bg-white rounded-2xl p-6 border border-[#D6E1EA]">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 bg-[#FFE7E7] rounded-lg flex items-center justify-center">
-                <CheckCircle2 className="w-5 h-5 text-[#FF6B6B]" />
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-[#FFE7E7] rounded-lg flex items-center justify-center">
+                  <CheckCircle2 className="w-5 h-5 text-[#FF6B6B]" />
+                </div>
+                <h2 className="text-xl font-semibold text-[#06162E]">待办事项</h2>
+                <span className="px-2 py-1 bg-[#EEF8FC] text-[#061B35] text-xs rounded-full">
+                  {meetingActions.length}
+                </span>
               </div>
-              <h2 className="text-xl font-semibold text-[#06162E]">待办事项</h2>
+              <button
+                onClick={() => setIsAddingAction(true)}
+                className="flex items-center gap-2 px-3 py-1.5 bg-[#061B35] text-white rounded-lg text-sm hover:bg-[#08213F] transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                添加待办
+              </button>
             </div>
 
-            <div className="text-center py-12">
-              <p className="text-[#536172]">暂无待办事项</p>
-              <p className="text-sm text-[#536172] mt-2">待办事项功能将在后续版本中完善</p>
-            </div>
+            {/* Add new action item form */}
+            {isAddingAction && (
+              <div className="mb-4 p-4 bg-[#EEF8FC] rounded-xl space-y-3">
+                <textarea
+                  value={newActionContent}
+                  onChange={(e) => setNewActionContent(e.target.value)}
+                  placeholder="输入待办事项内容..."
+                  className="w-full px-3 py-2 text-sm text-[#06162E] bg-white border border-[#D6E1EA] rounded-lg focus:outline-none focus:border-[#061B35] resize-none"
+                  rows={2}
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && e.ctrlKey) handleAddAction()
+                    if (e.key === 'Escape') {
+                      setNewActionContent('')
+                      setIsAddingAction(false)
+                    }
+                  }}
+                />
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-[#536172]">Ctrl+Enter 快速保存</p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        setNewActionContent('')
+                        setIsAddingAction(false)
+                      }}
+                      className="px-3 py-1.5 text-sm text-[#536172] hover:text-[#06162E] transition-colors"
+                    >
+                      取消
+                    </button>
+                    <button
+                      onClick={handleAddAction}
+                      disabled={!newActionContent.trim()}
+                      className="px-3 py-1.5 bg-[#10B981] text-white rounded-lg text-sm hover:bg-[#059669] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      添加
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Action items list */}
+            {meetingActions.length === 0 ? (
+              <div className="text-center py-12">
+                <CheckCircle2 className="w-12 h-12 text-[#536172] mx-auto mb-4" />
+                <p className="text-[#536172]">暂无待办事项</p>
+                <p className="text-sm text-[#536172] mt-2">点击上方"添加待办"按钮创建新待办</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {meetingActions.map((action) => (
+                  <div
+                    key={action.id}
+                    className={`p-4 rounded-xl border transition-all ${
+                      action.status === 'done'
+                        ? 'bg-[#F0FDF4] border-[#10B981] opacity-75'
+                        : action.status === 'in_progress'
+                        ? 'bg-[#FEF3C7] border-[#F59E0B]'
+                        : 'bg-white border-[#D6E1EA]'
+                    }`}
+                  >
+                    {editingActionId === action.id ? (
+                      <div className="space-y-3">
+                        <textarea
+                          value={editActionContent}
+                          onChange={(e) => setEditActionContent(e.target.value)}
+                          placeholder="待办事项内容"
+                          className="w-full px-3 py-2 text-sm text-[#06162E] bg-white border border-[#D6E1EA] rounded-lg focus:outline-none focus:border-[#061B35] resize-none"
+                          rows={2}
+                          autoFocus
+                        />
+                        <div className="grid grid-cols-2 gap-3">
+                          <input
+                            type="text"
+                            value={editActionOwner}
+                            onChange={(e) => setEditActionOwner(e.target.value)}
+                            placeholder="负责人（可选）"
+                            className="px-3 py-2 text-sm text-[#06162E] bg-white border border-[#D6E1EA] rounded-lg focus:outline-none focus:border-[#061B35]"
+                          />
+                          <input
+                            type="date"
+                            value={editActionDueDate}
+                            onChange={(e) => setEditActionDueDate(e.target.value)}
+                            className="px-3 py-2 text-sm text-[#06162E] bg-white border border-[#D6E1EA] rounded-lg focus:outline-none focus:border-[#061B35]"
+                          />
+                        </div>
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={handleCancelActionEdit}
+                            className="px-3 py-1.5 text-sm text-[#536172] hover:text-[#06162E] transition-colors"
+                          >
+                            取消
+                          </button>
+                          <button
+                            onClick={handleSaveActionEdit}
+                            disabled={!editActionContent.trim()}
+                            className="px-3 py-1.5 bg-[#10B981] text-white rounded-lg text-sm hover:bg-[#059669] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                          >
+                            <Save className="w-3 h-3" />
+                            保存
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-start gap-3">
+                        <button
+                          onClick={() => handleToggleActionStatus(action.id, action.status)}
+                          className={`mt-0.5 flex-shrink-0 w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+                            action.status === 'done'
+                              ? 'bg-[#10B981] border-[#10B981] text-white'
+                              : action.status === 'in_progress'
+                              ? 'bg-[#F59E0B] border-[#F59E0B] text-white'
+                              : 'border-[#536172] hover:border-[#061B35]'
+                          }`}
+                          title={action.status === 'done' ? '标记为未完成' : action.status === 'in_progress' ? '标记为已完成' : '标记为进行中'}
+                        >
+                          {action.status === 'done' && <CheckCircle2 className="w-3 h-3" />}
+                          {action.status === 'in_progress' && <div className="w-2 h-2 bg-white rounded-full animate-pulse" />}
+                        </button>
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-sm ${
+                            action.status === 'done' ? 'line-through text-[#536172]' : 'text-[#06162E]'
+                          }`}>
+                            {action.content}
+                          </p>
+                          {action.owner && (
+                            <p className="text-xs text-[#536172] mt-1">
+                              负责人: {action.owner}
+                            </p>
+                          )}
+                          {action.dueDate && (
+                            <p className="text-xs text-[#536172] mt-1">
+                              截止日期: {action.dueDate}
+                            </p>
+                          )}
+                          <div className="flex items-center gap-2 mt-2">
+                            <span className={`text-xs px-2 py-0.5 rounded-full ${
+                              action.status === 'done'
+                                ? 'bg-[#10B981] text-white'
+                                : action.status === 'in_progress'
+                                ? 'bg-[#F59E0B] text-white'
+                                : 'bg-[#EEF8FC] text-[#061B35]'
+                            }`}>
+                              {action.status === 'done' && '已完成'}
+                              {action.status === 'in_progress' && '进行中'}
+                              {action.status === 'todo' && '待处理'}
+                            </span>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => handleStartEditAction(action)}
+                          className="flex-shrink-0 p-1.5 text-[#536172] hover:text-[#061B35] hover:bg-[#EEF8FC] rounded-lg transition-colors"
+                          title="编辑待办"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteAction(action.id)}
+                          className="flex-shrink-0 p-1.5 text-[#536172] hover:text-[#FF6B6B] hover:bg-[#FFE7E7] rounded-lg transition-colors"
+                          title="删除待办"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -480,6 +1009,26 @@ export function SummaryDetailPage({ currentPage, meeting, templates, onBack }: S
                 </div>
               </div>
 
+              {meeting.participants && meeting.participants.length > 0 && (
+                <div className="flex items-start gap-3 p-4 bg-[#EEF8FC] rounded-lg">
+                  <Users className="w-5 h-5 text-[#536172] mt-0.5" />
+                  <div>
+                    <h3 className="font-medium text-[#06162E] mb-1">参会人员</h3>
+                    <p className="text-sm text-[#536172]">{meeting.participants.join(', ')}</p>
+                  </div>
+                </div>
+              )}
+
+              {meeting.audioFileName && (
+                <div className="flex items-start gap-3 p-4 bg-[#EEF8FC] rounded-lg">
+                  <FileText className="w-5 h-5 text-[#536172] mt-0.5" />
+                  <div>
+                    <h3 className="font-medium text-[#06162E] mb-1">音频文件</h3>
+                    <p className="text-sm text-[#536172]">{meeting.audioFileName}</p>
+                  </div>
+                </div>
+              )}
+
               <div className="flex items-start gap-3 p-4 bg-[#EEF8FC] rounded-lg">
                 <FileText className="w-5 h-5 text-[#536172] mt-0.5" />
                 <div>
@@ -499,6 +1048,22 @@ export function SummaryDetailPage({ currentPage, meeting, templates, onBack }: S
                     {meeting.status === 'summarizing' && '正在生成总结'}
                     {meeting.status === 'failed' && '处理失败'}
                   </p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3 p-4 bg-[#EEF8FC] rounded-lg">
+                <Clock className="w-5 h-5 text-[#536172] mt-0.5" />
+                <div>
+                  <h3 className="font-medium text-[#06162E] mb-1">创建时间</h3>
+                  <p className="text-sm text-[#536172]">{new Date(meeting.createdAt).toLocaleString('zh-CN')}</p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3 p-4 bg-[#EEF8FC] rounded-lg">
+                <Clock className="w-5 h-5 text-[#536172] mt-0.5" />
+                <div>
+                  <h3 className="font-medium text-[#06162E] mb-1">更新时间</h3>
+                  <p className="text-sm text-[#536172]">{new Date(meeting.updatedAt).toLocaleString('zh-CN')}</p>
                 </div>
               </div>
 
@@ -525,6 +1090,87 @@ export function SummaryDetailPage({ currentPage, meeting, templates, onBack }: S
           </div>
         )}
       </div>
+
+      {/* Export Dialog */}
+      {showExportDialog && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-semibold text-[#06162E]">导出会议</h3>
+              <button
+                onClick={() => setShowExportDialog(false)}
+                className="p-1.5 text-[#536172] hover:text-[#06162E] hover:bg-[#EEF8FC] rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {/* Format Selection */}
+              <div>
+                <label className="block text-sm font-medium text-[#06162E] mb-2">
+                  导出格式
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {(['markdown', 'txt', 'json'] as ExportFormat[]).map((format) => (
+                    <button
+                      key={format}
+                      onClick={() => setSelectedFormat(format)}
+                      className={`px-4 py-3 rounded-lg text-sm font-medium transition-all ${
+                        selectedFormat === format
+                          ? 'bg-[#061B35] text-white'
+                          : 'bg-[#EEF8FC] text-[#06162E] hover:bg-[#DCEBFF]'
+                      }`}
+                    >
+                      {format === 'markdown' && 'Markdown'}
+                      {format === 'txt' && 'TXT'}
+                      {format === 'json' && 'JSON'}
+                    </button>
+                  ))}
+                </div>
+                <div className="mt-2 text-xs text-[#536172]">
+                  {selectedFormat === 'markdown' && '格式化的文档，适合阅读和编辑'}
+                  {selectedFormat === 'txt' && '纯文本格式，兼容性最好'}
+                  {selectedFormat === 'json' && '结构化数据，适合程序处理'}
+                </div>
+              </div>
+
+              {/* Options */}
+              <div className="space-y-2">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={includeTranscript}
+                    onChange={(e) => setIncludeTranscript(e.target.checked)}
+                    className="w-4 h-4 text-[#061B35] border-[#D6E1EA] rounded focus:ring-[#061B35]"
+                  />
+                  <span className="text-sm text-[#06162E]">包含完整文字稿</span>
+                </label>
+                {includeTranscript && !meeting?.transcript && (
+                  <p className="text-xs text-[#FF6B6B] ml-7">当前会议暂无文字稿</p>
+                )}
+              </div>
+
+              {/* Action buttons */}
+              <div className="flex gap-3 pt-4">
+                <button
+                  onClick={() => setShowExportDialog(false)}
+                  className="flex-1 px-4 py-2.5 border border-[#D6E1EA] rounded-lg text-sm text-[#06162E] hover:bg-[#EEF8FC] transition-colors"
+                >
+                  取消
+                </button>
+                <button
+                  onClick={handleConfirmExport}
+                  className="flex-1 px-4 py-2.5 bg-[#061B35] text-white rounded-lg text-sm hover:bg-[#08213F] transition-colors flex items-center justify-center gap-2"
+                >
+                  <FileDown className="w-4 h-4" />
+                  导出
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

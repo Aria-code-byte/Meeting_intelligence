@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Sidebar } from './components/Sidebar'
 import { TopNav } from './components/TopNav'
 import { DashboardPage } from './pages/DashboardPage'
@@ -7,6 +7,8 @@ import { TemplatePage } from './pages/TemplatePage'
 import { SummaryDetailPage } from './pages/SummaryDetailPage'
 import { useMeetings, useTemplates } from './store/useAppStore'
 import { meetingStorage } from './lib/storage'
+import { transcribeMeetingAudio, type TranscriptionResult } from './services/transcriptionService'
+import { generateMeetingSummary, type SummaryResult, markSummaryAsManual } from './services/summaryGenerationService'
 import { processMeeting, getDefaultTemplate, type FallbackResult } from './services/meetingProcessingService'
 import type { Meeting } from './types/models'
 
@@ -15,18 +17,74 @@ export type PageType = 'dashboard' | 'meetings' | 'templates' | 'summary' | 'rec
 // Legacy type alias for compatibility
 export type MeetingStatus = Meeting['status']
 
+// URL helper functions
+function getUrlState() {
+  const params = new URLSearchParams(window.location.search)
+  const pageParam = params.get('page') as PageType
+
+  // Validate page parameter
+  const validPages: PageType[] = ['dashboard', 'meetings', 'templates', 'summary', 'recordings', 'action', 'library']
+  const page = validPages.includes(pageParam) ? pageParam : 'dashboard'
+
+  const meetingId = params.get('meetingId') || null
+
+  return { page, meetingId }
+}
+
+function setUrlState(page: PageType, meetingId: string | null = null) {
+  const params = new URLSearchParams()
+  params.set('page', page)
+  if (meetingId) {
+    params.set('meetingId', meetingId)
+  }
+  const newUrl = `${window.location.pathname}?${params.toString()}`
+  window.history.pushState({ page, meetingId }, '', newUrl)
+}
+
 function App() {
-  const [currentPage, setCurrentPage] = useState<PageType>('dashboard')
-  const [currentMeeting, setCurrentMeeting] = useState<Meeting | null>(null)
+  const [currentPage, setCurrentPage] = useState<PageType>(() => getUrlState().page)
+  const [currentMeetingId, setCurrentMeetingId] = useState<string | null>(() => getUrlState().meetingId)
 
   // Use new data store hooks
-  const { meetings, loading: meetingsLoading, createMeeting, deleteMeeting, updateMeeting, getRecentMeetings } = useMeetings()
+  const { meetings, loading: meetingsLoading, createMeeting, deleteMeeting, updateMeeting, getRecentMeetings, getMeetingById } = useMeetings()
   const { templates, loading: templatesLoading, createTemplate, deleteTemplate, updateTemplate, setDefaultTemplate } = useTemplates()
+
+  // Get current meeting from store based on meetingId
+  const currentMeeting = currentMeetingId ? getMeetingById(currentMeetingId) : null
 
   // Force repair on mount to fix any existing duplicate IDs
   useEffect(() => {
     meetingStorage.repair()
   }, [])
+
+  // Sync URL with state changes
+  useEffect(() => {
+    const handlePopState = () => {
+      const urlState = getUrlState()
+      setCurrentPage(urlState.page)
+      setCurrentMeetingId(urlState.meetingId)
+    }
+
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [])
+
+  // Clear invalid meetingId
+  useEffect(() => {
+    if (currentMeetingId && !currentMeeting) {
+      setCurrentMeetingId(null)
+      if (currentPage === 'summary' || currentPage === 'recordings' || currentPage === 'action' || currentPage === 'library') {
+        setCurrentPage('meetings')
+        setUrlState('meetings', null)
+      }
+    }
+
+    // Handle summary page without meetingId
+    if ((currentPage === 'summary' || currentPage === 'recordings' || currentPage === 'action' || currentPage === 'library') && !currentMeetingId) {
+      setCurrentPage('meetings')
+      setUrlState('meetings', null)
+    }
+  }, [currentMeetingId, currentMeeting, currentPage])
 
   // Processing state for dashboard
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
@@ -40,6 +98,12 @@ function App() {
 
   // Handle start processing with template selection
   const handleStartProcessing = async (file: File, title: string, templateId: string) => {
+    console.log('[App.tsx] handleStartProcessing 被调用:', {
+      fileName: file.name,
+      fileSize: file.size,
+      title,
+      templateId,
+    });
     try {
       // Check for duplicate meeting (same title and date)
       const today = new Date().toISOString().split('T')[0]
@@ -76,6 +140,8 @@ function App() {
           prompt: selectedTemplate.prompt,
         } : undefined,
         audioFileName: file.name,
+        transcriptionProvider: 'fallback',
+        transcriptionIsFallback: true,
       })
 
       if (!newMeeting) {
@@ -86,39 +152,75 @@ function App() {
 
       setProcessingMeetingId(newMeeting.id)
 
-      // 纯前端 fallback 模式：不调用后端
-      await processMeeting({
-        file,
-        title,
-        templateId,
-        localMeetingId: newMeeting.id,
-        onProgress: (stage, progress) => {
-          setProcessingProgress(progress)
-          setProcessingStage('uploading')
-        },
-        onComplete: (result: FallbackResult) => {
-          // Fallback 模式：会议已创建，等待手动补全文字稿
-          updateMeeting(newMeeting.id, {
-            status: 'uploaded',
-            progress: 20,
-            errorMessage: result.message,
-          })
-          setProcessingStage('completed')
-          setProcessingProgress(100)
-          setProcessingMeetingId(null)
-        },
-        onError: (error) => {
-          // 即使出错也保持会议记录
-          updateMeeting(newMeeting.id, {
-            status: 'uploaded',
-            progress: 20,
-            errorMessage: '后端转写服务暂不可用，请手动补充文字稿后生成总结。',
-          })
-          setProcessingStage('completed')
-          setProcessingProgress(100)
-          setProcessingMeetingId(null)
-        },
+      // 步骤 1: 调用转录服务
+      let transcriptionResult: TranscriptionResult
+      try {
+        transcriptionResult = await transcribeMeetingAudio({
+          meetingId: newMeeting.id,
+          file,
+          audioFileName: file.name,
+        })
+      } catch (error) {
+        transcriptionResult = {
+          transcript: '',
+          provider: 'fallback',
+          isFallback: true,
+          error: '转录服务暂不可用'
+        }
+      }
+
+      // 更新转录结果
+      updateMeeting(newMeeting.id, {
+        transcript: transcriptionResult.transcript,
+        transcriptionProvider: transcriptionResult.provider,
+        transcriptionIsFallback: transcriptionResult.isFallback,
+        status: 'transcribing',
+        progress: 40,
+        errorMessage: transcriptionResult.error,
+        lastProcessedAt: new Date().toISOString(),
       })
+
+      // 步骤 2: 调用总结服务
+      let summaryResult: SummaryResult
+      try {
+        summaryResult = await generateMeetingSummary({
+          meetingId: newMeeting.id,
+          transcript: transcriptionResult.transcript || '',
+          templateSnapshot: selectedTemplate ? {
+            id: selectedTemplate.id,
+            name: selectedTemplate.name,
+            structure: selectedTemplate.structure,
+            prompt: selectedTemplate.prompt,
+          } : undefined,
+        })
+      } catch (error) {
+        summaryResult = {
+          summary: '',
+          provider: 'fallback',
+          isFallback: true,
+          error: '总结服务暂不可用'
+        }
+      }
+
+      // 更新总结结果
+      console.log('[App.tsx] 写入总结结果到 Meeting:', {
+        summaryProvider: summaryResult.provider,
+        summaryIsFallback: summaryResult.isFallback,
+        summaryLength: summaryResult.summary.length,
+      });
+      updateMeeting(newMeeting.id, {
+        summary: summaryResult.summary,
+        summaryProvider: summaryResult.provider,
+        summaryIsFallback: summaryResult.isFallback,
+        status: summaryResult.error ? 'failed' : 'completed',
+        progress: summaryResult.error ? 0 : 100,
+        errorMessage: summaryResult.error,
+        lastProcessedAt: new Date().toISOString(),
+      })
+
+      setProcessingStage(summaryResult.error ? 'failed' : 'completed')
+      setProcessingProgress(100)
+      // Keep processingMeetingId for "View Results" button to use
 
     } catch (error) {
       alert(`处理启动失败: ${error}`)
@@ -129,12 +231,55 @@ function App() {
 
   const handlePageChange = (page: PageType) => {
     setCurrentPage(page)
+    setUrlState(page, null)
+
+    // Reset processing state when returning to dashboard
+    if (page === 'dashboard') {
+      setProcessingStage('idle')
+      setSelectedFile(null)
+      setProcessingProgress(0)
+      setProcessingMeetingId(null)
+    }
   }
 
   const handleMeetingClick = (meeting: Meeting) => {
-    setCurrentMeeting(meeting)
+    // Verify meeting still exists in store
+    const exists = meetings.find(m => m.id === meeting.id)
+    if (!exists) {
+      alert('该会议已被删除')
+      return
+    }
+    console.log('[App.tsx] handleMeetingClick 被调用:', {
+      meetingId: meeting.id,
+      summaryProvider: meeting.summaryProvider,
+      summaryIsFallback: meeting.summaryIsFallback,
+    })
+    setCurrentMeetingId(meeting.id)
     setCurrentPage('summary')
+    setUrlState('summary', meeting.id)
   }
+
+  // Wrap deleteMeeting to clear currentMeeting if needed
+  const handleDeleteMeeting = (id: string) => {
+    const deleted = deleteMeeting(id)
+    if (deleted && currentMeetingId === id) {
+      setCurrentMeetingId(null)
+      setCurrentPage('meetings')
+      setUrlState('meetings', null)
+    }
+    return deleted
+  }
+
+  // Clear currentMeeting if it was deleted elsewhere
+  useEffect(() => {
+    if (currentMeetingId && !getMeetingById(currentMeetingId)) {
+      setCurrentMeetingId(null)
+      if (currentPage === 'summary') {
+        setCurrentPage('meetings')
+        setUrlState('meetings', null)
+      }
+    }
+  }, [meetings, currentMeetingId, currentPage, getMeetingById])
 
   const shouldShowDetailSidebar = currentPage === 'recordings' || currentPage === 'action' || currentPage === 'library'
 
@@ -170,6 +315,7 @@ function App() {
                   selectedFile={selectedFile}
                   processingStage={processingStage}
                   processingProgress={processingProgress}
+                  processingMeetingId={processingMeetingId}
                   onFileSelect={setSelectedFile}
                   onProcessingStageChange={setProcessingStage}
                   onProcessingProgressChange={setProcessingProgress}
@@ -178,6 +324,9 @@ function App() {
                   }}
                   onMeetingClick={handleMeetingClick}
                   onStartProcessing={handleStartProcessing}
+                  onResetProcessing={() => {
+                    setProcessingMeetingId(null)
+                  }}
                 />
               )}
 
@@ -187,7 +336,7 @@ function App() {
                   templates={templates}
                   searchQuery={meetingSearchQuery}
                   onMeetingClick={handleMeetingClick}
-                  onMeetingDelete={deleteMeeting}
+                  onMeetingDelete={handleDeleteMeeting}
                   onMeetingStatusChange={(id, status) => {
                     updateMeeting(id, { status })
                   }}
@@ -211,9 +360,12 @@ function App() {
               {(currentPage === 'summary' || currentPage === 'recordings' || currentPage === 'action' || currentPage === 'library') && (
                 <SummaryDetailPage
                   currentPage={currentPage}
-                  meeting={currentMeeting}
+                  meetingId={currentMeetingId}
                   templates={templates}
-                  onBack={() => setCurrentPage('dashboard')}
+                  onBack={() => {
+                    setCurrentPage('meetings')
+                    setUrlState('meetings', null)
+                  }}
                 />
               )}
             </>

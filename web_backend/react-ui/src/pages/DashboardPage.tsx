@@ -9,12 +9,14 @@ interface DashboardPageProps {
   selectedFile: File | null
   processingStage: 'idle' | 'selected' | 'uploading' | 'transcribing' | 'cleaning' | 'summarizing' | 'completed' | 'failed'
   processingProgress: number
+  processingMeetingId: string | null
   onFileSelect: (file: File | null) => void
   onProcessingStageChange: (stage: any) => void
   onProcessingProgressChange: (progress: number) => void
   onMeetingAdd: (meeting: Meeting) => void
   onMeetingClick: (meeting: Meeting) => void
   onStartProcessing: (file: File, title: string, templateId: string) => void
+  onResetProcessing: () => void
 }
 
 const steps = [
@@ -30,12 +32,14 @@ export function DashboardPage({
   selectedFile,
   processingStage,
   processingProgress,
+  processingMeetingId,
   onFileSelect,
   onProcessingStageChange,
   onProcessingProgressChange,
   onMeetingAdd,
   onMeetingClick,
-  onStartProcessing
+  onStartProcessing,
+  onResetProcessing
 }: DashboardPageProps) {
   const [isDragging, setIsDragging] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
@@ -46,6 +50,9 @@ export function DashboardPage({
   const [meetingTitle, setMeetingTitle] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const intervalRef = useRef<number | null>(null)
+
+  // 调试：验证代码是否被加载
+  console.log('[DashboardPage] 组件已加载 - VITE_RELOAD_TEST', new Date().toISOString())
 
   // Cleanup interval on unmount
   useEffect(() => {
@@ -69,20 +76,40 @@ export function DashboardPage({
     onProcessingProgressChange(currentProgress)
   }, [currentProgress, onProcessingProgressChange])
 
+  // Note: Removed auto-reset for completed/failed states to allow users to click buttons
+  // State reset happens when:
+  // 1. User clicks "上传新文件" / "继续上传" button
+  // 2. User navigates to other pages (handled in App.tsx)
+  // 3. User starts a new upload
+
   const handleFileSelect = (file: File) => {
-    // Validate file size (2GB max)
-    if (file.size > 2 * 1024 * 1024 * 1024) {
-      setErrorMessage('文件大小超过 2GB 限制')
+    // Validate file size (500MB max as per Stage 9A requirements)
+    const maxSize = 500 * 1024 * 1024 // 500MB
+    if (file.size > maxSize) {
+      setErrorMessage('文件过大，请上传 500MB 以内的文件')
       return
     }
 
-    // Validate file type
-    const validTypes = ['audio/mpeg', 'audio/wav', 'audio/mp3', 'video/mp4', 'video/quicktime']
+    // Validate file type - more comprehensive format check
+    const validTypes = [
+      'audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/wave', 'audio/x-wav',
+      'audio/m4a', 'audio/x-m4a', 'audio/mp4', 'audio/x-m4p',
+      'video/mp4', 'video/quicktime', 'video/x-m4v', 'video/webm'
+    ]
     const fileExtension = file.name.split('.').pop()?.toLowerCase()
-    const validExtensions = ['mp3', 'wav', 'mp4', 'mov']
+    const validExtensions = ['mp3', 'wav', 'wave', 'm4a', 'mp4', 'mov', 'webm']
 
-    if (!validTypes.includes(file.type) && !validExtensions.includes(fileExtension || '')) {
-      setErrorMessage('不支持的文件格式。请上传 MP3, WAV, MP4 或 MOV 文件。')
+    // Check both MIME type and extension for better compatibility
+    const isValidType = validTypes.includes(file.type) || validExtensions.includes(fileExtension || '')
+
+    if (!isValidType) {
+      setErrorMessage('暂不支持该文件格式，请上传音频或视频文件（支持 MP3、WAV、M4A、MP4、MOV、WEBM）')
+      return
+    }
+
+    // Check if file is empty
+    if (file.size === 0) {
+      setErrorMessage('文件为空，请选择有效的音频或视频文件')
       return
     }
 
@@ -103,7 +130,10 @@ export function DashboardPage({
     }
 
     // Prevent starting if already processing
-    if (isProcessing) return
+    if (isProcessing) {
+      alert('正在处理中，请稍候')
+      return
+    }
 
     // Validate meeting title
     const title = meetingTitle.trim()
@@ -143,6 +173,7 @@ export function DashboardPage({
     onFileSelect(null)
     setMeetingTitle('')
     setErrorMessage('')
+    onResetProcessing()
   }
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -550,9 +581,24 @@ export function DashboardPage({
                 </button>
                 <button
                   onClick={() => {
-                    const newMeeting = meetings[0]
+                    console.log('[DashboardPage] 查看总结按钮被点击:', {
+                      processingMeetingId,
+                      meetingsCount: meetings.length,
+                      allMeetingIds: meetings.map(m => m.id),
+                    })
+                    const newMeeting = processingMeetingId ? meetings.find(m => m.id === processingMeetingId) : null
+                    console.log('[DashboardPage] 找到的会议:', {
+                      found: !!newMeeting,
+                      meetingId: newMeeting?.id,
+                      summaryProvider: newMeeting?.summaryProvider,
+                      summaryIsFallback: newMeeting?.summaryIsFallback,
+                    })
                     if (newMeeting) {
                       onMeetingClick(newMeeting)
+                    } else {
+                      // No meeting found, just reset to idle
+                      console.log('[DashboardPage] 未找到会议，重置状态')
+                      cancelProcessing()
                     }
                   }}
                   className="flex-1 px-6 py-3 bg-[#061B35] text-white rounded-xl font-medium hover:bg-[#08213F] transition-colors"
@@ -560,6 +606,44 @@ export function DashboardPage({
                   查看总结
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Fallback: Should never reach here, but if we do, show upload UI */}
+        {!['idle', 'selected', 'uploading', 'transcribing', 'cleaning', 'summarizing', 'completed', 'failed'].includes(processingStage) && (
+          <div className="w-[690px]">
+            <div className="bg-white rounded-2xl p-12 text-center">
+              <p className="text-[#536172] mb-4">状态异常，请重试</p>
+              <button
+                onClick={() => {
+                  onProcessingStageChange('idle')
+                  onFileSelect(null)
+                }}
+                className="px-6 py-3 bg-[#061B35] text-white rounded-xl font-medium hover:bg-[#08213F] transition-colors"
+              >
+                返回首页
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* DEFAULT FALLBACK - 永远显示上传入口 */}
+        {(!['idle', 'selected', 'uploading', 'transcribing', 'cleaning', 'summarizing', 'completed', 'failed'].includes(processingStage)) && (
+          <div className="w-[690px]">
+            <div className="bg-yellow-50 border-2 border-yellow-200 rounded-2xl p-8 text-center mb-6">
+              <AlertCircle className="w-16 h-16 text-yellow-600 mx-auto mb-4" />
+              <h2 className="text-2xl font-bold text-[#06162E] mb-2">状态异常</h2>
+              <p className="text-[#536172] mb-6">当前处理状态异常，请重试</p>
+              <button
+                onClick={() => {
+                  onProcessingStageChange('idle')
+                  onFileSelect(null)
+                }}
+                className="px-6 py-3 bg-[#061B35] text-white rounded-xl font-medium hover:bg-[#08213F] transition-colors"
+              >
+                重置状态
+              </button>
             </div>
           </div>
         )}
