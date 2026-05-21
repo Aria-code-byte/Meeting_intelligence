@@ -51,9 +51,6 @@ export function DashboardPage({
   const fileInputRef = useRef<HTMLInputElement>(null)
   const intervalRef = useRef<number | null>(null)
 
-  // 调试：验证代码是否被加载
-  console.log('[DashboardPage] 组件已加载 - VITE_RELOAD_TEST', new Date().toISOString())
-
   // Cleanup interval on unmount
   useEffect(() => {
     return () => {
