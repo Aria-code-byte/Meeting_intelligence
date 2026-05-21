@@ -670,10 +670,16 @@ export function SummaryDetailPage({ currentPage, meetingId, templates, onBack }:
                     <p className="text-[#F59E0B]">当前总结由本地 fallback 规则生成，尚未接入真实 AI 总结服务</p>
                   </div>
                 )}
-                {meeting.summaryProvider === 'backend' && !meeting.summaryIsFallback && (
+                {meeting.summaryProvider === 'backend' && !meeting.summaryIsFallback && meeting.summary && !meeting.errorMessage && (
                   <div className="flex items-start gap-2 px-3 py-2 bg-[#ECFDF5] rounded-lg border border-[#10B981] text-xs">
                     <CheckCircle2 className="w-4 h-4 text-[#10B981] mt-0.5 flex-shrink-0" />
                     <p className="text-[#10B981]">当前总结由后端总结服务生成</p>
+                  </div>
+                )}
+                {meeting.summaryProvider === 'backend' && meeting.errorMessage && (
+                  <div className="flex items-start gap-2 px-3 py-2 bg-[#FEE2E2] rounded-lg border border-[#EF4444] text-xs">
+                    <AlertCircle className="w-4 h-4 text-[#EF4444] mt-0.5 flex-shrink-0" />
+                    <p className="text-[#EF4444]">总结生成失败：{meeting.errorMessage}</p>
                   </div>
                 )}
                 {meeting.summaryProvider === 'manual' && (
