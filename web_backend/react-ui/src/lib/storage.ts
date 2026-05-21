@@ -305,6 +305,15 @@ export const templateStorage = {
     const filtered = templates.filter(t => t.id !== id);
     if (filtered.length === templates.length) return false;
 
+    // If deleted template was default, set new default
+    if (template?.isDefault && filtered.length > 0) {
+      // Prioritize built-in templates
+      const newDefault = filtered.find(t => t.isBuiltIn) || filtered[0];
+      if (newDefault) {
+        newDefault.isDefault = true;
+      }
+    }
+
     saveToStorage(STORAGE_KEYS.TEMPLATES, filtered);
     return true;
   },

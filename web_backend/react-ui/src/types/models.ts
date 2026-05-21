@@ -19,6 +19,13 @@ export interface Meeting {
   status: MeetingStatus;
   progress?: number;
   templateId?: string;
+  templateName?: string;
+  templateSnapshot?: {
+    id: string;
+    name: string;
+    structure?: string[];
+    prompt?: string;
+  };
   audioFileName?: string;
   audioFileUrl?: string;
   transcript?: string;

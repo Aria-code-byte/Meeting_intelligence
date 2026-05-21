@@ -1,12 +1,24 @@
 import { useState } from 'react'
-import { Plus, X, Check } from 'lucide-react'
+import { Plus, X, Check, Eye } from 'lucide-react'
 import { TemplateCard } from '../components/TemplateCard'
-import type { Template } from '../App'
+import type { SummaryTemplate } from '../types/models'
 
 interface TemplatePageProps {
-  templates: Template[]
-  onTemplateAdd: (template: Omit<Template, 'id'>) => void
-  onTemplateDelete: (id: number) => void
+  templates: SummaryTemplate[]
+  searchQuery: string
+  onTemplateAdd: (template: Omit<SummaryTemplate, 'id' | 'createdAt' | 'updatedAt'>) => void
+  onTemplateUpdate: (id: string, patch: Partial<Omit<SummaryTemplate, 'id' | 'createdAt'>>) => void
+  onTemplateDelete: (id: string) => void
+  onSetDefault: (id: string) => void
+}
+
+interface TemplateForm {
+  title: string
+  description: string
+  category: string
+  tags: string[]
+  structure: string[]
+  prompt: string
 }
 
 const categories = [
@@ -15,91 +27,239 @@ const categories = [
   { id: 'custom', label: '自定义模板' },
 ]
 
-export function TemplatePage({ templates, onTemplateAdd, onTemplateDelete }: TemplatePageProps) {
+const defaultForm: TemplateForm = {
+  title: '',
+  description: '',
+  category: 'general',
+  tags: [],
+  structure: ['会议概要', '关键决策', '行动项'],
+  prompt: '',
+}
+
+export function TemplatePage({
+  templates,
+  searchQuery,
+  onTemplateAdd,
+  onTemplateUpdate,
+  onTemplateDelete,
+  onSetDefault,
+}: TemplatePageProps) {
   const [activeCategory, setActiveCategory] = useState('all')
   const [showNewTemplateModal, setShowNewTemplateModal] = useState(false)
-  const [newTemplate, setNewTemplate] = useState({
-    title: '',
-    description: '',
-    category: '',
-    tags: [] as string[],
-    currentTag: ''
-  })
-  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
+  const [showEditTemplateModal, setShowEditTemplateModal] = useState(false)
+  const [showPreviewModal, setShowPreviewModal] = useState(false)
+  const [editingTemplate, setEditingTemplate] = useState<SummaryTemplate | null>(null)
+  const [previewTemplate, setPreviewTemplate] = useState<SummaryTemplate | null>(null)
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
 
-  // Filter templates based on category
-  const filteredTemplates = templates.filter(template => {
-    if (activeCategory === 'all') return true
-    if (activeCategory === 'builtin') return template.isBuiltin
-    if (activeCategory === 'custom') return !template.isBuiltin
-    return true
-  })
+  const [newTemplate, setNewTemplate] = useState<TemplateForm>(defaultForm)
+  const [currentTag, setCurrentTag] = useState('')
 
+  // 重置表单
+  const resetForm = () => {
+    setNewTemplate(defaultForm)
+    setCurrentTag('')
+  }
+
+  // 添加标签
   const handleAddTag = () => {
-    if (newTemplate.currentTag.trim() && !newTemplate.tags.includes(newTemplate.currentTag.trim())) {
+    if (currentTag.trim() && !newTemplate.tags.includes(currentTag.trim())) {
       setNewTemplate(prev => ({
         ...prev,
-        tags: [...prev.tags, prev.currentTag.trim()],
-        currentTag: ''
+        tags: [...prev.tags, currentTag.trim()],
+      }))
+      setCurrentTag('')
+    }
+  }
+
+  // 移除标签
+  const handleRemoveTag = (tagToRemove: string) => {
+    setNewTemplate(prev => ({
+      ...prev,
+      tags: prev.tags.filter(tag => tag !== tagToRemove),
+    }))
+  }
+
+  // 添加结构章节
+  const handleAddStructure = () => {
+    const section = prompt('请输入章节名称：')
+    if (section && section.trim()) {
+      setNewTemplate(prev => ({
+        ...prev,
+        structure: [...prev.structure, section.trim()],
       }))
     }
   }
 
-  const handleRemoveTag = (tagToRemove: string) => {
+  // 移除结构章节
+  const handleRemoveStructure = (index: number) => {
+    if (newTemplate.structure.length <= 1) {
+      alert('总结结构至少需要一个章节')
+      return
+    }
     setNewTemplate(prev => ({
       ...prev,
-      tags: prev.tags.filter(tag => tag !== tagToRemove)
+      structure: prev.structure.filter((_, i) => i !== index),
     }))
   }
 
+  // 保存新模板
   const handleSaveTemplate = () => {
-    if (!newTemplate.title.trim() || !newTemplate.description.trim()) {
+    const trimmedTitle = newTemplate.title.trim()
+    const trimmedDescription = newTemplate.description.trim()
+
+    if (!trimmedTitle) {
+      alert('请输入模板名称')
+      return
+    }
+
+    if (trimmedTitle.length > 50) {
+      alert('模板名称不能超过 50 个字符')
+      return
+    }
+
+    if (trimmedDescription.length > 200) {
+      alert('模板描述不能超过 200 个字符')
+      return
+    }
+
+    if (newTemplate.structure.length === 0) {
+      alert('总结结构至少需要一个章节')
       return
     }
 
     onTemplateAdd({
-      title: newTemplate.title,
-      description: newTemplate.description,
-      category: newTemplate.category || 'general',
-      isBuiltin: false,
-      tags: newTemplate.tags
+      name: trimmedTitle,
+      description: trimmedDescription,
+      type: 'custom',
+      category: newTemplate.category,
+      tags: newTemplate.tags,
+      structure: newTemplate.structure,
+      prompt: newTemplate.prompt || undefined,
+      isDefault: false,
+      isBuiltIn: false,
     })
 
-    // Reset form
-    setNewTemplate({
-      title: '',
-      description: '',
-      category: '',
-      tags: [],
-      currentTag: ''
-    })
+    resetForm()
     setShowNewTemplateModal(false)
   }
 
-  const handleDeleteTemplate = (id: number) => {
+  // 打开编辑模板
+  const handleEditTemplate = (template: SummaryTemplate) => {
+    setEditingTemplate(template)
+    setNewTemplate({
+      title: template.name,
+      description: template.description,
+      category: template.category || 'general',
+      tags: template.tags,
+      structure: template.structure || ['会议概要', '关键决策', '行动项'],
+      prompt: template.prompt || '',
+    })
+    setShowEditTemplateModal(true)
+  }
+
+  // 保存编辑
+  const handleSaveEdit = () => {
+    if (!editingTemplate) return
+
+    const trimmedTitle = newTemplate.title.trim()
+    const trimmedDescription = newTemplate.description.trim()
+
+    if (!trimmedTitle) {
+      alert('请输入模板名称')
+      return
+    }
+
+    if (trimmedTitle.length > 50) {
+      alert('模板名称不能超过 50 个字符')
+      return
+    }
+
+    if (trimmedDescription.length > 200) {
+      alert('模板描述不能超过 200 个字符')
+      return
+    }
+
+    if (newTemplate.structure.length === 0) {
+      alert('总结结构至少需要一个章节')
+      return
+    }
+
+    onTemplateUpdate(editingTemplate.id, {
+      name: trimmedTitle,
+      description: trimmedDescription,
+      category: newTemplate.category,
+      tags: newTemplate.tags,
+      structure: newTemplate.structure,
+      prompt: newTemplate.prompt || undefined,
+    })
+
+    resetForm()
+    setEditingTemplate(null)
+    setShowEditTemplateModal(false)
+  }
+
+  // 删除模板
+  const handleDeleteTemplate = (id: string) => {
     onTemplateDelete(id)
     setDeleteConfirmId(null)
   }
 
-  const handleCopyTemplate = (template: Template) => {
+  // 复制模板
+  const handleCopyTemplate = (template: SummaryTemplate) => {
     onTemplateAdd({
-      title: `${template.title} (副本)`,
+      name: `${template.name} (副本)`,
       description: template.description,
-      category: template.category,
-      isBuiltin: false,
-      tags: [...template.tags]
+      type: 'custom',
+      category: template.category || 'general',
+      tags: [...template.tags],
+      structure: template.structure ? [...template.structure] : undefined,
+      prompt: template.prompt,
+      isDefault: false,
+      isBuiltIn: false,
     })
+  }
+
+  // 预览模板
+  const handlePreviewTemplate = (template: SummaryTemplate) => {
+    setPreviewTemplate(template)
+    setShowPreviewModal(true)
+  }
+
+  // 设置默认模板
+  const handleSetDefault = (id: string) => {
+    onSetDefault(id)
+  }
+
+  // 过滤模板
+  const filteredTemplates = templates.filter(template => {
+    const matchesCategory =
+      activeCategory === 'all' ||
+      (activeCategory === 'builtin' && template.isBuiltIn) ||
+      (activeCategory === 'custom' && !template.isBuiltIn)
+
+    const searchLower = searchQuery.toLowerCase()
+    const matchesSearch =
+      searchQuery === '' ||
+      template.name.toLowerCase().includes(searchLower) ||
+      template.description.toLowerCase().includes(searchLower) ||
+      template.tags.some(tag => tag.toLowerCase().includes(searchLower)) ||
+      (template.category && template.category.toLowerCase().includes(searchLower))
+
+    return matchesCategory && matchesSearch
+  })
+
+  // 获取表单标题
+  const getFormTitle = () => {
+    return showEditTemplateModal ? '编辑模板' : '创建新模板'
   }
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-4xl font-bold text-[#06162E] mb-2">模板管理</h1>
-        <p className="text-lg text-[#536172]">
-          创建、编辑和管理不同会议场景下的总结模板。
-        </p>
-      </div>
+      {/* Page Description */}
+      <p className="text-base text-[#536172]">
+        创建、编辑和管理不同会议场景下的总结模板。
+      </p>
 
       {/* Category Tabs */}
       <div className="flex items-center gap-6 border-b border-[#D6E1EA]">
@@ -122,48 +282,63 @@ export function TemplatePage({ templates, onTemplateAdd, onTemplateDelete }: Tem
       </div>
 
       {/* Template Grid */}
-      <div className="grid grid-cols-3 gap-5">
-        {filteredTemplates.map((template) => (
-          <TemplateCard
-            key={template.id}
-            {...template}
-            onCopy={() => handleCopyTemplate(template)}
-            onDelete={
-              !template.isBuiltin
-                ? () => setDeleteConfirmId(deleteConfirmId === template.id ? null : template.id)
-                : undefined
-            }
-            showDeleteConfirm={deleteConfirmId === template.id}
-            onConfirmDelete={() => handleDeleteTemplate(template.id)}
-            onCancelDelete={() => setDeleteConfirmId(null)}
-          />
-        ))}
-
-        {/* Create New Template Card */}
-        <div
-          onClick={() => setShowNewTemplateModal(true)}
-          className="bg-white rounded-2xl border-2 border-dashed border-[#D6E1EA] p-6 flex flex-col items-center justify-center text-center hover:border-[#061B35] transition-colors cursor-pointer min-h-[280px]"
-        >
-          <div className="w-14 h-14 bg-[#DCEBFF] rounded-full flex items-center justify-center mb-4">
-            <Plus className="w-7 h-7 text-[#061B35]" />
-          </div>
-          <h3 className="text-lg font-semibold text-[#06162E] mb-2">
-            创建自定义模板
-          </h3>
-          <p className="text-sm text-[#536172]">
-            （自定义输出结构、摘要格式和 AI 提示词）
-          </p>
+      {filteredTemplates.length === 0 ? (
+        <div className="py-16 text-center bg-white rounded-2xl border border-[#D6E1EA]">
+          {activeCategory === 'custom' && !searchQuery.trim() ? (
+            <>
+              <p className="text-lg font-medium text-[#06162E] mb-2">暂无自定义模板</p>
+              <p className="text-sm text-[#536172]">点击右上角「新建模板」创建你的第一个模板。</p>
+            </>
+          ) : (
+            <>
+              <p className="text-lg font-medium text-[#06162E] mb-2">没有找到符合条件的模板</p>
+              <p className="text-sm text-[#536172]">请调整搜索关键词或筛选条件。</p>
+            </>
+          )}
         </div>
-      </div>
+      ) : (
+        <div className="grid grid-cols-3 gap-5">
+          {filteredTemplates.map((template) => (
+            <TemplateCard
+              key={template.id}
+              id={template.id}
+              title={template.name}
+              description={template.description}
+              category={template.category || 'general'}
+              isBuiltin={template.isBuiltIn}
+              isDefault={template.isDefault}
+              structure={template.structure}
+              tags={template.tags}
+              onCopy={() => handleCopyTemplate(template)}
+              onEdit={!template.isBuiltIn ? () => handleEditTemplate(template) : undefined}
+              onPreview={() => handlePreviewTemplate(template)}
+              onSetDefault={!template.isDefault ? () => handleSetDefault(template.id) : undefined}
+              onDelete={
+                !template.isBuiltIn
+                  ? () => setDeleteConfirmId(deleteConfirmId === template.id ? null : template.id)
+                  : undefined
+              }
+              showDeleteConfirm={deleteConfirmId === template.id}
+              onConfirmDelete={() => handleDeleteTemplate(template.id)}
+              onCancelDelete={() => setDeleteConfirmId(null)}
+            />
+          ))}
+        </div>
+      )}
 
-      {/* New Template Modal */}
-      {showNewTemplateModal && (
+      {/* New/Edit Template Modal */}
+      {(showNewTemplateModal || showEditTemplateModal) && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl w-full max-w-lg p-6">
+          <div className="bg-white rounded-2xl w-full max-w-2xl p-6 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-semibold text-[#06162E]">创建新模板</h2>
+              <h2 className="text-xl font-semibold text-[#06162E]">{getFormTitle()}</h2>
               <button
-                onClick={() => setShowNewTemplateModal(false)}
+                onClick={() => {
+                  resetForm()
+                  setEditingTemplate(null)
+                  setShowNewTemplateModal(false)
+                  setShowEditTemplateModal(false)
+                }}
                 className="w-8 h-8 rounded-lg hover:bg-[#EEF8FC] flex items-center justify-center transition-colors"
               >
                 <X className="w-5 h-5 text-[#536172]" />
@@ -174,13 +349,14 @@ export function TemplatePage({ templates, onTemplateAdd, onTemplateDelete }: Tem
               {/* Title */}
               <div>
                 <label className="block text-sm font-medium text-[#06162E] mb-2">
-                  模板名称 *
+                  模板名称 * <span className="text-[#536172] font-normal">（最多 50 个字符）</span>
                 </label>
                 <input
                   type="text"
                   value={newTemplate.title}
                   onChange={(e) => setNewTemplate(prev => ({ ...prev, title: e.target.value }))}
                   placeholder="例如：客户沟通模板"
+                  maxLength={50}
                   className="w-full px-4 py-2.5 border border-[#D6E1EA] rounded-xl focus:outline-none focus:border-[#061B35] transition-colors"
                 />
               </div>
@@ -188,13 +364,14 @@ export function TemplatePage({ templates, onTemplateAdd, onTemplateDelete }: Tem
               {/* Description */}
               <div>
                 <label className="block text-sm font-medium text-[#06162E] mb-2">
-                  模板描述 *
+                  模板描述 * <span className="text-[#536172] font-normal">（最多 200 个字符）</span>
                 </label>
                 <textarea
                   value={newTemplate.description}
                   onChange={(e) => setNewTemplate(prev => ({ ...prev, description: e.target.value }))}
                   placeholder="描述此模板的用途和特点..."
                   rows={3}
+                  maxLength={200}
                   className="w-full px-4 py-2.5 border border-[#D6E1EA] rounded-xl focus:outline-none focus:border-[#061B35] transition-colors resize-none"
                 />
               </div>
@@ -209,12 +386,55 @@ export function TemplatePage({ templates, onTemplateAdd, onTemplateDelete }: Tem
                   onChange={(e) => setNewTemplate(prev => ({ ...prev, category: e.target.value }))}
                   className="w-full px-4 py-2.5 border border-[#D6E1EA] rounded-xl focus:outline-none focus:border-[#061B35] transition-colors"
                 >
-                  <option value="">选择分类</option>
                   <option value="general">通用</option>
                   <option value="technical">技术</option>
                   <option value="business">商务</option>
                   <option value="hr">人力资源</option>
+                  <option value="education">教育</option>
+                  <option value="finance">财务</option>
                 </select>
+              </div>
+
+              {/* Structure */}
+              <div>
+                <label className="block text-sm font-medium text-[#06162E] mb-2">
+                  总结结构 * <span className="text-[#536172] font-normal">（至少一个章节）</span>
+                </label>
+                <div className="space-y-2 mb-2">
+                  {newTemplate.structure.map((section, index) => (
+                    <div key={index} className="flex items-center gap-2">
+                      <span className="flex-1 px-4 py-2 bg-[#EEF8FC] rounded-lg text-sm text-[#06162E]">
+                        {section}
+                      </span>
+                      <button
+                        onClick={() => handleRemoveStructure(index)}
+                        className="w-8 h-8 rounded-lg hover:bg-red-50 flex items-center justify-center transition-colors text-red-500"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  onClick={handleAddStructure}
+                  className="w-full px-4 py-2 border border-dashed border-[#D6E1EA] rounded-lg text-sm text-[#536172] hover:border-[#061B35] hover:text-[#06162E] transition-colors"
+                >
+                  + 添加章节
+                </button>
+              </div>
+
+              {/* Prompt */}
+              <div>
+                <label className="block text-sm font-medium text-[#06162E] mb-2">
+                  生成要求 / Prompt <span className="text-[#536172] font-normal">（可选）</span>
+                </label>
+                <textarea
+                  value={newTemplate.prompt}
+                  onChange={(e) => setNewTemplate(prev => ({ ...prev, prompt: e.target.value }))}
+                  placeholder="输入 AI 生成要求或自定义提示词..."
+                  rows={4}
+                  className="w-full px-4 py-2.5 border border-[#D6E1EA] rounded-xl focus:outline-none focus:border-[#061B35] transition-colors resize-none"
+                />
               </div>
 
               {/* Tags */}
@@ -225,8 +445,8 @@ export function TemplatePage({ templates, onTemplateAdd, onTemplateDelete }: Tem
                 <div className="flex gap-2 mb-2">
                   <input
                     type="text"
-                    value={newTemplate.currentTag}
-                    onChange={(e) => setNewTemplate(prev => ({ ...prev, currentTag: e.target.value }))}
+                    value={currentTag}
+                    onChange={(e) => setCurrentTag(e.target.value)}
                     onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddTag())}
                     placeholder="输入标签后按回车或点击添加"
                     className="flex-1 px-4 py-2.5 border border-[#D6E1EA] rounded-xl focus:outline-none focus:border-[#061B35] transition-colors"
@@ -262,18 +482,121 @@ export function TemplatePage({ templates, onTemplateAdd, onTemplateDelete }: Tem
             {/* Actions */}
             <div className="flex gap-3 mt-6">
               <button
-                onClick={() => setShowNewTemplateModal(false)}
+                onClick={() => {
+                  resetForm()
+                  setEditingTemplate(null)
+                  setShowNewTemplateModal(false)
+                  setShowEditTemplateModal(false)
+                }}
                 className="flex-1 px-6 py-3 border border-[#D6E1EA] rounded-xl text-[#06162E] font-medium hover:bg-[#EEF8FC] transition-colors"
               >
                 取消
               </button>
               <button
-                onClick={handleSaveTemplate}
-                disabled={!newTemplate.title.trim() || !newTemplate.description.trim()}
-                className="flex-1 px-6 py-3 bg-[#061B35] text-white rounded-xl font-medium hover:bg-[#08213F] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                onClick={showEditTemplateModal ? handleSaveEdit : handleSaveTemplate}
+                className="flex-1 px-6 py-3 bg-[#061B35] text-white rounded-xl font-medium hover:bg-[#08213F] transition-colors flex items-center justify-center gap-2"
               >
                 <Check className="w-5 h-5" />
-                保存模板
+                {showEditTemplateModal ? '保存修改' : '创建模板'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Preview Modal */}
+      {showPreviewModal && previewTemplate && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl w-full max-w-2xl p-6 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-semibold text-[#06162E]">模板预览</h2>
+              <button
+                onClick={() => {
+                  setPreviewTemplate(null)
+                  setShowPreviewModal(false)
+                }}
+                className="w-8 h-8 rounded-lg hover:bg-[#EEF8FC] flex items-center justify-center transition-colors"
+              >
+                <X className="w-5 h-5 text-[#536172]" />
+              </button>
+            </div>
+
+            <div className="space-y-6">
+              {/* Basic Info */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 bg-[#DCEBFF] rounded-lg flex items-center justify-center">
+                    <Eye className="w-6 h-6 text-[#061B35]" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-[#06162E]">{previewTemplate.name}</h3>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className={`px-2.5 py-1 text-xs rounded-full ${previewTemplate.isDefault ? 'bg-[#FFA54D] text-white' : 'bg-[#E9F3FF] text-[#061B35]'}`}>
+                        {previewTemplate.isDefault ? '默认模板' : previewTemplate.isBuiltIn ? '内置模板' : '自定义模板'}
+                      </span>
+                      <span className="px-2.5 py-1 bg-[#EEF8FC] text-[#536172] text-xs rounded-full">
+                        {previewTemplate.category || 'general'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <p className="text-sm text-[#536172]">{previewTemplate.description}</p>
+              </div>
+
+              {/* Tags */}
+              {previewTemplate.tags.length > 0 && (
+                <div>
+                  <h4 className="text-sm font-medium text-[#06162E] mb-2">标签</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {previewTemplate.tags.map((tag) => (
+                      <span
+                        key={tag}
+                        className="px-3 py-1 bg-[#E9F3FF] text-[#061B35] text-xs rounded-full"
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Structure */}
+              <div>
+                <h4 className="text-sm font-medium text-[#06162E] mb-2">总结结构</h4>
+                <div className="space-y-2">
+                  {(previewTemplate.structure || ['会议概要', '关键决策', '行动项']).map((section, index) => (
+                    <div key={index} className="flex items-center gap-2">
+                      <span className="w-6 h-6 bg-[#DCEBFF] rounded-full flex items-center justify-center text-xs text-[#061B35] font-medium">
+                        {index + 1}
+                      </span>
+                      <span className="text-sm text-[#06162E]">{section}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Prompt */}
+              {previewTemplate.prompt && (
+                <div>
+                  <h4 className="text-sm font-medium text-[#06162E] mb-2">生成要求 / Prompt</h4>
+                  <div className="p-4 bg-[#EEF8FC] rounded-xl text-sm text-[#06162E] whitespace-pre-wrap">
+                    {previewTemplate.prompt}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Close Button */}
+            <div className="flex justify-end mt-6">
+              <button
+                onClick={() => {
+                  setPreviewTemplate(null)
+                  setShowPreviewModal(false)
+                }}
+                className="px-6 py-3 bg-[#061B35] text-white rounded-xl font-medium hover:bg-[#08213F] transition-colors"
+              >
+                关闭
               </button>
             </div>
           </div>

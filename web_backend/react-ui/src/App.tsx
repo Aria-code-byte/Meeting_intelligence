@@ -21,7 +21,7 @@ function App() {
 
   // Use new data store hooks
   const { meetings, loading: meetingsLoading, createMeeting, deleteMeeting, updateMeeting, getRecentMeetings } = useMeetings()
-  const { templates, loading: templatesLoading, createTemplate, deleteTemplate } = useTemplates()
+  const { templates, loading: templatesLoading, createTemplate, deleteTemplate, updateTemplate, setDefaultTemplate } = useTemplates()
 
   // Force repair on mount to fix any existing duplicate IDs
   useEffect(() => {
@@ -56,7 +56,10 @@ function App() {
         return
       }
 
-      // Create meeting record with selected template
+      // Get template for snapshot
+      const selectedTemplate = templates.find(t => t.id === templateId)
+
+      // Create meeting record with selected template and snapshot
       const newMeeting = createMeeting({
         title,
         date: today,
@@ -65,6 +68,13 @@ function App() {
         status: 'uploaded',
         progress: 20,
         templateId: templateId,
+        templateName: selectedTemplate?.name,
+        templateSnapshot: selectedTemplate ? {
+          id: selectedTemplate.id,
+          name: selectedTemplate.name,
+          structure: selectedTemplate.structure,
+          prompt: selectedTemplate.prompt,
+        } : undefined,
         audioFileName: file.name,
       })
 
@@ -190,8 +200,11 @@ function App() {
               {currentPage === 'templates' && (
                 <TemplatePage
                   templates={templates}
+                  searchQuery={templateSearchQuery}
                   onTemplateAdd={createTemplate}
+                  onTemplateUpdate={updateTemplate}
                   onTemplateDelete={deleteTemplate}
+                  onSetDefault={setDefaultTemplate}
                 />
               )}
 
