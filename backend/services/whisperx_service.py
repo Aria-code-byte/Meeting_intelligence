@@ -181,6 +181,11 @@ def build_turns(
     """
     从片段构建对话轮次
 
+    优先级逻辑：
+    1. 如果 segment.words 中有 word-level speaker：按 word.speaker 切分
+    2. 如果没有 word-level speaker：使用 segment.speaker 或多数原则 fallback
+    3. 完全没有 speaker 信息：使用 UNKNOWN 或 SPEAKER
+
     Args:
         segments: WhisperX 片段列表
         diarization_enabled: 是否启用了说话人分离
@@ -202,14 +207,69 @@ def build_turns(
         if not text.strip():
             continue
 
-        if diarization_enabled and words:
-            # 有说话人信息
-            speaker = speaker_for_segment(words)
-            if speaker:
-                add_turn(turns, speaker, start, end, text)
+        if diarization_enabled:
+            # 检查是否有 word-level speaker
+            has_word_speaker = any(
+                w.get("speaker") for w in words if isinstance(w, dict)
+            )
+
+            if has_word_speaker:
+                # 优先级 1: 按 word-level speaker 切分
+                current_speaker = None
+                current_words = []
+                current_start = None
+
+                for word in words:
+                    word_speaker = word.get("speaker")
+                    word_text = word.get("word", "")
+                    word_start = word.get("start")
+                    word_end = word.get("end")
+
+                    if not word_text:
+                        continue
+
+                    # 首次初始化
+                    if current_speaker is None:
+                        current_speaker = word_speaker or "UNKNOWN"
+                        current_words = [word_text]
+                        current_start = word_start if word_start is not None else start
+                        continue
+
+                    # 检测 speaker 变化
+                    if word_speaker and word_speaker != current_speaker:
+                        # speaker 变化，结束当前 turn
+                        if current_words:
+                            turn_text = "".join(current_words)
+                            turn_end = word.get("start", current_start)
+                            add_turn(turns, current_speaker, current_start, turn_end, turn_text)
+
+                        # 开始新 turn
+                        current_speaker = word_speaker
+                        current_words = [word_text]
+                        current_start = word_start if word_start is not None else start
+                    else:
+                        # 同一 speaker，累加词
+                        current_words.append(word_text)
+
+                # 处理最后一个 turn
+                if current_words:
+                    turn_text = "".join(current_words)
+                    turn_end = end
+                    add_turn(turns, current_speaker or "UNKNOWN", current_start, turn_end, turn_text)
+
             else:
-                # 没有说话人信息，使用 "UNKNOWN"
-                add_turn(turns, "UNKNOWN", start, end, text)
+                # 优先级 2: 没有 word-level speaker，尝试使用 segment.speaker
+                segment_speaker = segment.get("speaker")
+                if segment_speaker:
+                    add_turn(turns, segment_speaker, start, end, text)
+                else:
+                    # 优先级 3: 使用多数原则 fallback
+                    fallback_speaker = speaker_for_segment(words)
+                    if fallback_speaker:
+                        add_turn(turns, fallback_speaker, start, end, text)
+                    else:
+                        # 完全没有 speaker 信息
+                        add_turn(turns, "UNKNOWN", start, end, text)
         else:
             # 没有说话人分离，使用 "SPEAKER"
             add_turn(turns, "SPEAKER", start, end, text)
@@ -282,6 +342,21 @@ def transcribe_with_whisperx(
     skip_align = skip_align if skip_align is not None else WHISPERX_SKIP_ALIGN
     diarization_enabled = diarization_enabled if diarization_enabled is not None else DIARIZATION_ENABLED
     hf_token = hf_token or HF_TOKEN
+
+    # 显式解析 compute_type（不依赖 WhisperX 隐式默认值）
+    if compute_type is None:
+        compute_type = WHISPERX_COMPUTE_TYPE
+    if compute_type is None or compute_type == "":
+        # 根据 device 自动选择
+        try:
+            import torch
+            if device == "cuda" or (device == "auto" and torch.cuda.is_available()):
+                compute_type = "float16"
+            else:
+                compute_type = "int8"
+        except ImportError:
+            # PyTorch 不可用时默认 CPU
+            compute_type = "int8"
 
     # ============================================================
     # 参数验证
