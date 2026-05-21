@@ -36,6 +36,15 @@ pytest>=7.4.0           # 单元测试框架
 # faster-whisper>=0.10.0  # Whisper 的更快实现 (未启用)
 
 # --------------------------------------------
+# AI Processing Dependencies (阶段 10B)
+# --------------------------------------------
+# WhisperX - 高级语音转文字（支持说话人分离）
+whisperx>=3.1.0  # WhisperX 转录与对齐
+pyannote.audio>=3.1.0  # 说话人分离（speaker diarization）
+einops>=0.7.0  # 张量操作库（WhisperX 依赖）
+accelerate>=0.28.0  # 模型加速（WhisperX 依赖）
+
+# --------------------------------------------
 # External Dependencies (需系统级安装)
 # --------------------------------------------
 # FFmpeg - 音频/视频处理
