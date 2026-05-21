@@ -170,9 +170,18 @@ function App() {
       }
 
       // 更新转录结果
+      // 阶段 10B-4：保存 transcriptTurns 和 provider metadata
       updateMeeting(newMeeting.id, {
         transcript: transcriptionResult.transcript,
+        // 阶段 10B-4：新增字段
+        transcriptTurns: transcriptionResult.transcriptTurns,
         transcriptionProvider: transcriptionResult.provider,
+        transcriptionModel: transcriptionResult.transcriptionModel,
+        diarizationEnabled: transcriptionResult.diarizationEnabled,
+        diarizationProvider: transcriptionResult.diarizationProvider,
+        diarizationModel: transcriptionResult.diarizationModel,
+        alignmentStatus: transcriptionResult.alignmentStatus,
+        alignmentError: transcriptionResult.alignmentError,
         transcriptionIsFallback: transcriptionResult.isFallback,
         status: 'transcribing',
         progress: 40,

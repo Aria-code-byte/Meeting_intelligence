@@ -4,13 +4,14 @@
  *
  * 当前支持：
  * - 后端API调用（优先）：/api/v1/transcribe
+ * - WhisperX + pyannote 说话人分离（阶段 10B-4）
  * - 本地fallback模式（后端不可用时）
  */
 
-import type { Meeting } from '../types/models';
+import type { Meeting, TranscriptTurn } from '../types/models';
 import { apiClient } from './apiClient';
 
-export type TranscriptionProvider = 'fallback' | 'backend' | 'manual';
+export type TranscriptionProvider = 'fallback' | 'backend' | 'manual' | 'whisperx';
 
 export interface TranscriptionInput {
   meetingId: string;
@@ -18,12 +19,24 @@ export interface TranscriptionInput {
   audioFileName?: string;
 }
 
+/**
+ * 阶段 10B-4：扩展 TranscriptionResult 支持 speaker turns
+ */
 export interface TranscriptionResult {
   transcript: string;
+  // 阶段 10B-4：新增 transcriptTurns
+  transcriptTurns?: TranscriptTurn[];
   provider: TranscriptionProvider;
   isFallback: boolean;
   processingTime?: number;
   error?: string;
+  // 阶段 10B-4：新增 provider metadata 字段
+  transcriptionModel?: string;
+  diarizationEnabled?: boolean;
+  diarizationProvider?: string;
+  diarizationModel?: string;
+  alignmentStatus?: 'success' | 'skipped' | 'failed';
+  alignmentError?: string;
 }
 
 /**
@@ -56,47 +69,91 @@ export async function transcribeMeetingAudio(input: TranscriptionInput): Promise
     formData.append('language', 'zh');
 
     // 调用后端 API: /api/v1/transcribe
+    // 阶段 10B-4：更新 API 响应类型匹配后端 WhisperXTranscriptionProvider
     const response = await apiClient.postFile<{
       success: boolean;
-      transcript?: string;
-      segments?: Array<{ start: string; speaker: string; text: string }>;
+      data?: {
+        transcript: string;
+        transcriptTurns?: TranscriptTurn[];
+        segments?: Array<{ start: number; end: number; text: string }>;
+        language?: string;
+        transcriptionProvider: string;
+        transcriptionModel?: string;
+        diarizationEnabled?: boolean;
+        diarizationProvider?: string;
+        diarizationModel?: string;
+        alignmentStatus?: 'success' | 'skipped' | 'failed';
+        alignmentError?: string;
+      };
       provider: string;
       isFallback: boolean;
       processingTimeMs?: number;
       error?: string;
     }>('/v1/transcribe', formData);
 
+    // 类型断言：确保 response.data 的类型正确
+    const typedResponse = response as {
+      success: boolean;
+      data?: {
+        transcript: string;
+        transcriptTurns?: TranscriptTurn[];
+        segments?: Array<{ start: number; end: number; text: string }>;
+        language?: string;
+        transcriptionProvider: string;
+        transcriptionModel?: string;
+        diarizationEnabled?: boolean;
+        diarizationProvider?: string;
+        diarizationModel?: string;
+        alignmentStatus?: 'success' | 'skipped' | 'failed';
+        alignmentError?: string;
+      };
+      provider: string;
+      isFallback: boolean;
+      processingTimeMs?: number;
+      error?: string;
+    };
+
     console.log('[TranscriptionService] 转录响应:', {
-      success: response.success,
-      hasTranscript: !!response.data?.transcript,
-      transcriptLength: response.data?.transcript?.length || 0,
-      provider: response.data?.provider,
-      isFallback: response.data?.isFallback,
-      error: response.error,
+      success: typedResponse.success,
+      hasTranscript: !!typedResponse.data?.transcript,
+      hasTranscriptTurns: !!typedResponse.data?.transcriptTurns,
+      transcriptLength: typedResponse.data?.transcript?.length || 0,
+      turnsCount: typedResponse.data?.transcriptTurns?.length || 0,
+      provider: typedResponse.data?.transcriptionProvider,
+      isFallback: typedResponse.isFallback,
+      error: typedResponse.error,
     });
 
-    if (!response.success) {
-      throw new Error(response.error || '转录请求失败');
+    if (!typedResponse.success) {
+      throw new Error(typedResponse.error || '转录请求失败');
     }
 
-    const data = response.data;
+    const data = typedResponse.data;
     if (!data) {
       throw new Error('后端返回数据为空');
     }
 
-    // 检查是否成功
-    if (data.success && data.transcript) {
-      console.log('[TranscriptionService] 转录成功，返回 transcript');
+    // 阶段 10B-4：检查后端返回的完整数据结构
+    if (data.transcript) {
+      console.log('[TranscriptionService] 转录成功，返回完整数据');
       return {
         transcript: data.transcript,
-        provider: data.provider === 'backend' ? 'backend' : 'fallback',
-        isFallback: data.isFallback,
-        processingTime: data.processingTimeMs,
+        transcriptTurns: data.transcriptTurns,
+        provider: (data.transcriptionProvider === 'whisperx' ? 'whisperx' :
+                  data.transcriptionProvider === 'backend' ? 'backend' : 'fallback'),
+        isFallback: typedResponse.isFallback,
+        processingTime: typedResponse.processingTimeMs,
+        transcriptionModel: data.transcriptionModel,
+        diarizationEnabled: data.diarizationEnabled,
+        diarizationProvider: data.diarizationProvider,
+        diarizationModel: data.diarizationModel,
+        alignmentStatus: data.alignmentStatus,
+        alignmentError: data.alignmentError,
       };
     } else {
-      // 后端返回失败，尝试 fallback
-      console.log('[TranscriptionService] 后端转录失败，返回空 transcript');
-      throw new Error(data.error || '转录失败');
+      // 后端返回失败
+      console.log('[TranscriptionService] 后端转录失败');
+      throw new Error(typedResponse.error || '转录失败');
     }
 
   } catch (error) {

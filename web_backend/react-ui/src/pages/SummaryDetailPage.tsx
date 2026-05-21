@@ -6,7 +6,24 @@ import { generateFallbackSummary, validateTranscript, generateMeetingSummary, ma
 import { exportMeeting, canExport, type ExportFormat } from '../services/exportService'
 import { getUserSettings } from '../services/settingsService'
 import type { PageType } from '../App'
-import type { Meeting, ActionItem } from '../types/models'
+import type { Meeting, ActionItem, TranscriptTurn } from '../types/models'
+
+// 阶段 10B-4：辅助函数 - 格式化时间
+function formatTimestamp(seconds: number | null): string {
+  if (seconds === null || seconds === undefined) return '??:??:??.???'
+  const hours = Math.floor(seconds / 3600)
+  const minutes = Math.floor((seconds % 3600) / 60)
+  const secs = Math.floor(seconds % 60)
+  const ms = Math.floor((seconds % 1) * 1000)
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}.${String(ms).padStart(3, '0')}`
+}
+
+// 阶段 10B-4：辅助函数 - 格式化 speaker turn
+function formatTranscriptTurn(turn: TranscriptTurn): string {
+  const startTime = formatTimestamp(turn.start)
+  const endTime = formatTimestamp(turn.end)
+  return `[${startTime} - ${endTime}] ${turn.speaker}\n${turn.text}`
+}
 
 interface SummaryDetailPageProps {
   currentPage: PageType
@@ -656,14 +673,6 @@ export function SummaryDetailPage({ currentPage, meetingId, templates, onBack }:
                 <div className="text-[#06162E] leading-relaxed whitespace-pre-line">
                   {meeting.summary}
                 </div>
-                {/* 调试日志 */}
-                {console.log('[SummaryDetailPage] 渲染总结区域:', {
-                  summaryProvider: meeting.summaryProvider,
-                  summaryIsFallback: meeting.summaryIsFallback,
-                  backendCondition: meeting.summaryProvider === 'backend' && !meeting.summaryIsFallback,
-                  fallbackCondition: meeting.summaryProvider === 'fallback' && meeting.summaryIsFallback,
-                  manualCondition: meeting.summaryProvider === 'manual',
-                })}
                 {meeting.summaryProvider === 'fallback' && meeting.summaryIsFallback && (
                   <div className="flex items-start gap-2 px-3 py-2 bg-[#FFF7ED] rounded-lg border border-[#F59E0B] text-xs">
                     <AlertCircle className="w-4 h-4 text-[#F59E0B] mt-0.5 flex-shrink-0" />
@@ -686,6 +695,24 @@ export function SummaryDetailPage({ currentPage, meetingId, templates, onBack }:
                   <div className="flex items-start gap-2 px-3 py-2 bg-[#EEF8FC] rounded-lg border border-[#061B35] text-xs">
                     <CheckCircle2 className="w-4 h-4 text-[#061B35] mt-0.5 flex-shrink-0" />
                     <p className="text-[#061B35]">当前总结已由用户手动编辑</p>
+                  </div>
+                )}
+                {/* 阶段 10B-4：Transcription provider 信息 */}
+                {meeting.transcriptionProvider && (
+                  <div className="flex items-center gap-2 px-3 py-2 bg-[#F0F9FF] rounded-lg border border-[#0EA5E9] text-xs">
+                    <FileText className="w-4 h-4 text-[#0EA5E9] flex-shrink-0" />
+                    <p className="text-[#06162E]">
+                      <strong>转写：</strong>
+                      {meeting.transcriptionProvider === 'whisperx' && `WhisperX / ${meeting.transcriptionModel || 'unknown'}`}
+                      {meeting.transcriptionProvider === 'backend' && '后端 Whisper'}
+                      {meeting.transcriptionProvider === 'fallback' && '本地 fallback'}
+                      {meeting.transcriptionProvider === 'manual' && '手动输入'}
+                      {meeting.diarizationEnabled && meeting.diarizationProvider && (
+                        <span className="ml-2">
+                          <strong>说话人分离：</strong>{meeting.diarizationProvider} / {meeting.diarizationModel || 'unknown'}
+                        </span>
+                      )}
+                    </p>
                   </div>
                 )}
               </div>
@@ -728,8 +755,43 @@ export function SummaryDetailPage({ currentPage, meetingId, templates, onBack }:
               )}
             </div>
 
-            {/* Show transcript if exists */}
-            {meeting.transcript && !isEditingTranscript ? (
+            {/* 阶段 10B-4：优先展示 speaker turns，否则展示普通 transcript */}
+            {meeting.transcriptTurns && meeting.transcriptTurns.length > 0 && !isEditingTranscript ? (
+              <div className="space-y-3">
+                {meeting.transcriptTurns.map((turn, index) => (
+                  <div key={index} className="p-4 bg-[#EEF8FC] rounded-lg border-l-4 border-[#061B35]">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-xs font-semibold text-[#061B35] bg-[#DCEBFF] px-2 py-1 rounded">
+                        {turn.speaker}
+                      </span>
+                      <span className="text-xs text-[#536172]">
+                        {formatTimestamp(turn.start)} - {formatTimestamp(turn.end)}
+                      </span>
+                    </div>
+                    <p className="text-sm text-[#06162E] whitespace-pre-line">{turn.text}</p>
+                  </div>
+                ))}
+                {/* Transcription provider info */}
+                <div className="mt-4 p-3 bg-[#F0FDF4] rounded-lg border border-[#10B981]">
+                  <p className="text-xs text-[#06162E]">
+                    <strong>转写：</strong>
+                    {meeting.transcriptionProvider === 'whisperx' ? `WhisperX / ${meeting.transcriptionModel || 'unknown'}` : meeting.transcriptionProvider || 'unknown'}
+                    {meeting.diarizationEnabled && meeting.diarizationProvider && (
+                      <span className="ml-2">
+                        <strong>说话人分离：</strong>{meeting.diarizationProvider} / {meeting.diarizationModel || 'unknown'}
+                      </span>
+                    )}
+                  </p>
+                </div>
+                {/* Alignment status warning */}
+                {meeting.alignmentStatus === 'failed' && meeting.alignmentError && (
+                  <div className="flex items-start gap-2 px-3 py-2 bg-[#FFF7ED] rounded-lg border border-[#F59E0B] text-xs">
+                    <AlertCircle className="w-4 h-4 text-[#F59E0B] mt-0.5 flex-shrink-0" />
+                    <p className="text-[#F59E0B]">词级对齐失败，当前使用片段时间戳。错误：{meeting.alignmentError}</p>
+                  </div>
+                )}
+              </div>
+            ) : meeting.transcript && !isEditingTranscript ? (
               <div className="space-y-4">
                 {meeting.transcript.split('\n\n').map((paragraph, index) => (
                   <div key={index} className="p-4 bg-[#EEF8FC] rounded-lg">

@@ -10,6 +10,17 @@ export type MeetingStatus =
   | 'completed'
   | 'failed';
 
+/**
+ * TranscriptTurn - 说话人轮次（阶段 10B-4）
+ * 用于展示 WhisperX + pyannote 生成的说话人分离转录结果
+ */
+export interface TranscriptTurn {
+  speaker: string;
+  start: number | null;
+  end: number | null;
+  text: string;
+}
+
 export interface Meeting {
   id: string;
   title: string;
@@ -29,10 +40,28 @@ export interface Meeting {
   audioFileName?: string;
   audioFileUrl?: string;
   transcript?: string;
+  // 阶段 10B-4：新增 transcriptTurns 字段
+  transcriptTurns?: TranscriptTurn[];
   summary?: string;
   actionItemIds?: string[];
   errorMessage?: string;
   backendMeetingId?: string;
+  // AI 处理来源字段
+  // 阶段 10B-4：扩展 transcriptionProvider 支持 whisperx
+  transcriptionProvider?: 'fallback' | 'backend' | 'manual' | 'whisperx';
+  summaryProvider?: 'fallback' | 'backend' | 'manual';
+  transcriptionIsFallback?: boolean;
+  summaryIsFallback?: boolean;
+  // 阶段 10B-4：新增 provider metadata 字段
+  transcriptionModel?: string;
+  diarizationEnabled?: boolean;
+  diarizationProvider?: string;
+  diarizationModel?: string;
+  alignmentStatus?: 'success' | 'skipped' | 'failed';
+  alignmentError?: string;
+  summaryModel?: string;
+  processingError?: string;
+  lastProcessedAt?: string;
   createdAt: string;
   updatedAt: string;
 }
