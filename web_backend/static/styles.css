@@ -1,0 +1,614 @@
+/* ============================================================
+   Jinni AI Intelligence System - Design System CSS
+   基于 Intelligent Precision 设计系统
+   ============================================================ */
+
+/* ========================================
+   1. 基础变量与重置
+   ======================================== */
+
+:root {
+    /* 色彩系统 */
+    --surface: #F9F9FF;
+    --surface-dim: #CFDAF2;
+    --surface-bright: #F9F9FF;
+    --surface-container-lowest: #FFFFFF;
+    --surface-container-low: #F0F3FF;
+    --surface-container: #E7EEFF;
+    --surface-container-high: #DEE8FF;
+    --surface-container-highest: #D8E3FB;
+
+    --on-surface: #111C2D;
+    --on-surface-variant: #43474E;
+
+    --primary: #002542;
+    --on-primary: #FFFFFF;
+    --primary-container: #163B5C;
+    --on-primary-container: #84A5CC;
+    --inverse-primary: #A8C9F2;
+
+    --secondary: #4D6171;
+    --on-secondary: #FFFFFF;
+    --secondary-container: #D0E5F8;
+    --on-secondary-container: #536777;
+
+    --tertiary: #371D00;
+    --on-tertiary: #FFFFFF;
+    --tertiary-container: #553000;
+    --on-tertiary-container: #D6954B;
+
+    --ai-accent: #FFB86B;
+    --ai-accent-container: rgba(255, 184, 107, 0.1);
+
+    --error: #BA1A1A;
+    --on-error: #FFFFFF;
+    --error-container: #FFDAD6;
+    --on-error-container: #93000A;
+
+    --outline: #D8EAF8;
+
+    /* 字体 */
+    --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+    /* 圆角 */
+    --radius-sm: 4px;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --radius-xl: 16px;
+    --radius-full: 9999px;
+
+    /* 阴影 */
+    --shadow-sm: 0 2px 8px rgba(22, 59, 92, 0.04);
+    --shadow-md: 0 4px 12px rgba(22, 59, 92, 0.05);
+    --shadow-lg: 0 8px 24px rgba(22, 59, 92, 0.08);
+    --shadow-xl: 0 12px 32px rgba(22, 59, 92, 0.12);
+
+    /* 间距 */
+    --spacing-xs: 8px;
+    --spacing-sm: 12px;
+    --spacing-md: 16px;
+    --spacing-lg: 24px;
+    --spacing-xl: 32px;
+    --spacing-2xl: 48px;
+}
+
+/* ========================================
+   2. 全局样式覆盖
+   ======================================== */
+
+/* 字体导入 */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+/* 主体背景 */
+.main .block-container {
+    background-color: var(--surface) !important;
+    padding: var(--spacing-lg) var(--spacing-xl) !important;
+    max-width: 1400px !important;
+}
+
+/* 字体全局应用 */
+body, .stMarkdown, .stText {
+    font-family: var(--font-family) !important;
+    color: var(--on-surface) !important;
+}
+
+/* 标题样式 */
+h1 {
+    font-family: var(--font-family) !important;
+    font-size: 32px !important;
+    font-weight: 700 !important;
+    line-height: 40px !important;
+    letter-spacing: -0.02em !important;
+    color: var(--primary) !important;
+    margin-bottom: var(--spacing-md) !important;
+}
+
+h2 {
+    font-family: var(--font-family) !important;
+    font-size: 24px !important;
+    font-weight: 600 !important;
+    line-height: 32px !important;
+    color: var(--primary) !important;
+    margin-bottom: var(--spacing-sm) !important;
+}
+
+h3 {
+    font-family: var(--font-family) !important;
+    font-size: 20px !important;
+    font-weight: 600 !important;
+    line-height: 28px !important;
+    color: var(--primary) !important;
+}
+
+/* ========================================
+   3. 卡片组件
+   ======================================== */
+
+.design-card {
+    background: var(--surface-container-lowest) !important;
+    border-radius: var(--radius-xl) !important;
+    padding: var(--spacing-lg) !important;
+    box-shadow: var(--shadow-md) !important;
+    border: 1px solid var(--outline) !important;
+    margin-bottom: var(--spacing-md) !important;
+    transition: all 0.2s ease !important;
+}
+
+.design-card:hover {
+    box-shadow: var(--shadow-lg) !important;
+}
+
+/* AI 生成的卡片 - 带顶部边框 */
+.design-card.ai-generated {
+    border-top: 3px solid var(--secondary-container) !important;
+}
+
+/* ========================================
+   4. 按钮样式
+   ======================================== */
+
+/* 主要按钮 */
+.stButton > button[kind="primary"] {
+    background-color: var(--primary-container) !important;
+    color: var(--on-primary) !important;
+    border: none !important;
+    border-radius: 10px !important;
+    padding: 12px 24px !important;
+    font-family: var(--font-family) !important;
+    font-weight: 600 !important;
+    font-size: 14px !important;
+    transition: all 0.2s ease !important;
+    box-shadow: var(--shadow-sm) !important;
+}
+
+.stButton > button[kind="primary"]:hover {
+    background-color: var(--primary) !important;
+    box-shadow: var(--shadow-md) !important;
+    transform: translateY(-1px) !important;
+}
+
+/* 次要按钮 */
+.stButton > button:not([kind="primary"]) {
+    background-color: transparent !important;
+    color: var(--primary) !important;
+    border: 1px solid var(--primary) !important;
+    border-radius: 10px !important;
+    padding: 12px 24px !important;
+    font-family: var(--font-family) !important;
+    font-weight: 600 !important;
+    font-size: 14px !important;
+    transition: all 0.2s ease !important;
+}
+
+.stButton > button:not([kind="primary"]):hover {
+    background-color: var(--surface-container-low) !important;
+}
+
+/* AI 功能按钮 */
+.ai-button {
+    background: linear-gradient(135deg, var(--ai-accent) 0%, #FFA500 100%) !important;
+    color: var(--primary) !important;
+    border: none !important;
+    border-radius: 10px !important;
+    padding: 12px 24px !important;
+    font-weight: 600 !important;
+    box-shadow: 0 4px 12px rgba(255, 184, 107, 0.3) !important;
+}
+
+.ai-button:hover {
+    box-shadow: 0 6px 16px rgba(255, 184, 107, 0.4) !important;
+    transform: translateY(-1px) !important;
+}
+
+/* ========================================
+   5. 输入框样式
+   ======================================== */
+
+.stTextArea > div > textarea,
+.stTextInput > div > input,
+.stSelectbox > div > select {
+    background-color: var(--surface-container-lowest) !important;
+    border: 1px solid var(--outline) !important;
+    border-radius: 10px !important;
+    padding: 12px !important;
+    font-family: var(--font-family) !important;
+    font-size: 14px !important;
+    color: var(--on-surface) !important;
+    transition: all 0.2s ease !important;
+}
+
+.stTextArea > div > textarea:focus,
+.stTextInput > div > input:focus,
+.stSelectbox > div > select:focus {
+    border-color: var(--primary) !important;
+    border-width: 2px !important;
+    box-shadow: 0 0 0 3px rgba(22, 59, 92, 0.1) !important;
+    outline: none !important;
+}
+
+/* ========================================
+   6. 文件上传区域
+   ======================================== */
+
+.upload-area {
+    background: var(--surface-container-lowest) !important;
+    border: 2px dashed var(--outline) !important;
+    border-radius: var(--radius-xl) !important;
+    padding: var(--spacing-2xl) !important;
+    text-align: center !important;
+    transition: all 0.3s ease !important;
+    cursor: pointer !important;
+}
+
+.upload-area:hover {
+    border-color: var(--secondary-container) !important;
+    background: var(--surface-container-low) !important;
+}
+
+/* ========================================
+   7. 状态标签/芯片
+   ======================================== */
+
+.status-chip {
+    display: inline-flex !important;
+    align-items: center !important;
+    padding: 4px 12px !important;
+    border-radius: var(--radius-full) !important;
+    font-size: 12px !important;
+    font-weight: 500 !important;
+    gap: 6px !important;
+}
+
+.status-chip.success {
+    background-color: rgba(76, 175, 80, 0.1) !important;
+    color: #2E7D32 !important;
+}
+
+.status-chip.processing {
+    background-color: var(--surface-container-low) !important;
+    color: var(--primary) !important;
+}
+
+.status-chip.error {
+    background-color: var(--error-container) !important;
+    color: var(--on-error-container) !important;
+}
+
+.status-chip.ai {
+    background-color: var(--ai-accent-container) !important;
+    color: var(--tertiary) !important;
+}
+
+/* ========================================
+   8. 进度条
+   ======================================== */
+
+.stProgress > div > div > div > div {
+    background: linear-gradient(90deg, var(--primary-container), var(--secondary-container)) !important;
+    border-radius: var(--radius-full) !important;
+}
+
+.stProgress > div > div > div {
+    background-color: var(--surface-container) !important;
+    border-radius: var(--radius-full) !important;
+}
+
+/* ========================================
+   9. 侧边栏样式
+   ======================================== */
+
+.css-1d391kg {
+    background: linear-gradient(180deg, var(--surface-container) 0%, var(--surface) 100%) !important;
+    border-right: 1px solid var(--outline) !important;
+}
+
+/* 侧边栏导航项 */
+.sidebar-nav-item {
+    display: flex !important;
+    align-items: center !important;
+    padding: 12px 16px !important;
+    margin: 4px 12px !important;
+    border-radius: 8px !important;
+    color: var(--on-surface-variant) !important;
+    text-decoration: none !important;
+    transition: all 0.2s ease !important;
+    position: relative !important;
+}
+
+.sidebar-nav-item:hover {
+    background-color: var(--surface-container-low) !important;
+}
+
+.sidebar-nav-item.active {
+    background-color: var(--secondary-container) !important;
+    color: var(--primary) !important;
+}
+
+.sidebar-nav-item.active::before {
+    content: '' !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 8px !important;
+    bottom: 8px !important;
+    width: 3px !important;
+    background-color: var(--primary) !important;
+    border-radius: 2px !important;
+}
+
+/* ========================================
+   10. 列表项
+   ======================================== */
+
+.list-item {
+    background: var(--surface-container-lowest) !important;
+    border-radius: var(--radius-md) !important;
+    padding: var(--spacing-md) !important;
+    margin-bottom: var(--spacing-sm) !important;
+    border: 1px solid transparent !important;
+    transition: all 0.2s ease !important;
+    cursor: pointer !important;
+}
+
+.list-item:hover {
+    background: var(--surface-container-low) !important;
+    border-color: var(--outline) !important;
+}
+
+.list-item.selected {
+    background: var(--secondary-container) !important;
+    border-color: var(--secondary-container) !important;
+}
+
+/* ========================================
+   11. 分隔线
+   ======================================== */
+
+hr {
+    border: none !important;
+    height: 1px !important;
+    background: var(--outline) !important;
+    margin: var(--spacing-lg) 0 !important;
+}
+
+/* ========================================
+   12. 步骤指示器
+   ======================================== */
+
+.step-indicator {
+    display: flex !important;
+    align-items: center !important;
+    gap: var(--spacing-sm) !important;
+}
+
+.step-dot {
+    width: 32px !important;
+    height: 32px !important;
+    border-radius: var(--radius-full) !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    transition: all 0.3s ease !important;
+}
+
+.step-dot.completed {
+    background-color: var(--secondary-container) !important;
+    color: var(--primary) !important;
+}
+
+.step-dot.active {
+    background-color: var(--primary-container) !important;
+    color: var(--on-primary) !important;
+}
+
+.step-dot.pending {
+    background-color: var(--surface-container) !important;
+    color: var(--on-surface-variant) !important;
+}
+
+.step-line {
+    flex: 1 !important;
+    height: 2px !important;
+    background: var(--surface-container) !important;
+    min-width: 40px !important;
+}
+
+.step-line.completed {
+    background: var(--secondary-container) !important;
+}
+
+/* ========================================
+   13. 模板卡片网格
+   ======================================== */
+
+.template-grid {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)) !important;
+    gap: var(--spacing-md) !important;
+}
+
+.template-card {
+    background: var(--surface-container-lowest) !important;
+    border-radius: var(--radius-lg) !important;
+    padding: var(--spacing-md) !important;
+    border: 2px solid transparent !important;
+    cursor: pointer !important;
+    transition: all 0.2s ease !important;
+    box-shadow: var(--shadow-sm) !important;
+}
+
+.template-card:hover {
+    border-color: var(--secondary-container) !important;
+    box-shadow: var(--shadow-md) !important;
+}
+
+.template-card.selected {
+    border-color: var(--primary-container) !important;
+    background: var(--surface-container-low) !important;
+}
+
+.template-card-header {
+    display: flex !important;
+    align-items: center !important;
+    gap: var(--spacing-sm) !important;
+    margin-bottom: var(--spacing-sm) !important;
+}
+
+.template-icon {
+    width: 40px !important;
+    height: 40px !important;
+    border-radius: var(--radius-md) !important;
+    background: var(--secondary-container) !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 20px !important;
+}
+
+.template-name {
+    font-weight: 600 !important;
+    color: var(--primary) !important;
+}
+
+.template-desc {
+    font-size: 13px !important;
+    color: var(--on-surface-variant) !important;
+    line-height: 1.5 !important;
+}
+
+.template-tags {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+    margin-top: var(--spacing-sm) !important;
+}
+
+.template-tag {
+    padding: 2px 8px !important;
+    border-radius: var(--radius-sm) !important;
+    background: var(--surface-container) !important;
+    font-size: 11px !important;
+    color: var(--on-surface-variant) !important;
+}
+
+/* ========================================
+   14. 消息/通知样式
+   ======================================== */
+
+.stSuccess {
+    background: rgba(76, 175, 80, 0.1) !important;
+    border-left: 4px solid #4CAF50 !important;
+    border-radius: var(--radius-md) !important;
+    padding: var(--spacing-md) !important;
+}
+
+.stInfo {
+    background: var(--surface-container-low) !important;
+    border-left: 4px solid var(--secondary-container) !important;
+    border-radius: var(--radius-md) !important;
+    padding: var(--spacing-md) !important;
+}
+
+.stWarning {
+    background: rgba(255, 152, 0, 0.1) !important;
+    border-left: 4px solid #FF9800 !important;
+    border-radius: var(--radius-md) !important;
+    padding: var(--spacing-md) !important;
+}
+
+.stError {
+    background: var(--error-container) !important;
+    border-left: 4px solid var(--error) !important;
+    border-radius: var(--radius-md) !important;
+    padding: var(--spacing-md) !important;
+}
+
+/* ========================================
+   15. Expander / 折叠面板
+   ======================================== */
+
+.streamlit-expanderHeader {
+    background: var(--surface-container-lowest) !important;
+    border-radius: var(--radius-md) !important;
+    padding: var(--spacing-md) !important;
+    border: 1px solid var(--outline) !important;
+    font-weight: 600 !important;
+    color: var(--primary) !important;
+}
+
+.streamlit-expanderContent {
+    background: var(--surface-container-lowest) !important;
+    border-radius: var(--radius-md) !important;
+    padding: var(--spacing-md) !important;
+    border: 1px solid var(--outline) !important;
+    border-top: none !important;
+}
+
+/* ========================================
+   16. 工具类
+   ======================================== */
+
+.text-primary { color: var(--primary) !important; }
+.text-secondary { color: var(--on-surface-variant) !important; }
+.text-accent { color: var(--ai-accent) !important; }
+
+.bg-surface { background: var(--surface) !important; }
+.bg-container { background: var(--surface-container-lowest) !important; }
+.bg-container-low { background: var(--surface-container-low) !important; }
+
+.mt-xs { margin-top: var(--spacing-xs) !important; }
+.mt-sm { margin-top: var(--spacing-sm) !important; }
+.mt-md { margin-top: var(--spacing-md) !important; }
+.mt-lg { margin-top: var(--spacing-lg) !important; }
+
+.mb-xs { margin-bottom: var(--spacing-xs) !important; }
+.mb-sm { margin-bottom: var(--spacing-sm) !important; }
+.mb-md { margin-bottom: var(--spacing-md) !important; }
+.mb-lg { margin-bottom: var(--spacing-lg) !important; }
+
+.flex { display: flex !important; }
+.flex-col { flex-direction: column !important; }
+.items-center { align-items: center !important; }
+.justify-between { justify-content: space-between !important; }
+.gap-sm { gap: var(--spacing-sm) !important; }
+.gap-md { gap: var(--spacing-md) !important; }
+
+/* ========================================
+   17. 动画
+   ======================================== */
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+
+.fade-in {
+    animation: fadeIn 0.3s ease-out !important;
+}
+
+.pulse {
+    animation: pulse 2s ease-in-out infinite !important;
+}
+
+/* ========================================
+   18. 响应式调整
+   ======================================== */
+
+@media (max-width: 768px) {
+    .main .block-container {
+        padding: var(--spacing-md) !important;
+    }
+
+    .template-grid {
+        grid-template-columns: 1fr !important;
+    }
+
+    h1 { font-size: 24px !important; }
+    h2 { font-size: 20px !important; }
+}

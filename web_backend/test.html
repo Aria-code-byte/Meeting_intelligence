@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>测试页面 - Jinni</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .card {
+            background: white;
+            border-radius: 16px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        h1 {
+            color: #667eea;
+            margin-bottom: 20px;
+        }
+        .status {
+            padding: 12px 20px;
+            background: #10b981;
+            color: white;
+            border-radius: 8px;
+            display: inline-block;
+            margin: 10px 0;
+        }
+        .link {
+            display: block;
+            padding: 15px;
+            background: #f3f4f6;
+            border-radius: 8px;
+            margin: 10px 0;
+            text-decoration: none;
+            color: #667eea;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        .link:hover {
+            background: #e5e7eb;
+            transform: translateY(-2px);
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>✨ Jinni 测试页面</h1>
+        <div class="status">✅ 如果你看到这个页面，说明你的浏览器可以正常访问本地服务</div>
+
+        <h2>可用服务：</h2>
+        <a href="http://localhost:9003" class="link" target="_blank">🚀 http://localhost:9003 (app.py)</a>
+        <a href="http://localhost:9002" class="link" target="_blank">🎨 http://localhost:9002 (Ultra 版本)</a>
+
+        <h2>诊断信息：</h2>
+        <ul>
+            <li>当前时间：<span id="time"></span></li>
+            <li>用户代理：<span id="ua"></span></li>
+        </ul>
+
+        <p style="color: #6b7280; margin-top: 30px;">
+            💡 提示：如果点击上面的链接后页面空白，请尝试：
+            <br>1. 刷新页面（Ctrl+F5）
+            <br>2. 清除浏览器缓存
+            <br>3. 尝试使用不同的浏览器
+            <br>4. 检查浏览器控制台是否有错误信息
+        </p>
+    </div>
+
+    <script>
+        document.getElementById('time').textContent = new Date().toLocaleString('zh-CN');
+        document.getElementById('ua').textContent = navigator.userAgent;
+    </script>
+</body>
+</html>

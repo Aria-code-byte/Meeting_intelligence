@@ -71,7 +71,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--llm", "-l",
         default=DEFAULT_LLM,
-        choices=["mock", "glm", "openai", "anthropic"],
+        choices=["mock", "glm", "openai", "anthropic", "deepseek"],
         help=f"LLM 提供商（默认: {DEFAULT_LLM}）"
     )
 

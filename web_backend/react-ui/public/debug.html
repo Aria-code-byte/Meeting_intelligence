@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Meeting Storage Debug</title>
+</head>
+<body>
+  <h1>Meeting Storage Debug Tool</h1>
+  <button onclick="checkLocalStorage()">Check LocalStorage</button>
+  <button onclick="repairStorage()">Repair Storage</button>
+  <button onclick="clearStorage()">Clear All Meetings</button>
+  <pre id="output"></pre>
+
+  <script>
+    function output(msg) {
+      document.getElementById('output').textContent += msg + '\n';
+    }
+
+    function clearOutput() {
+      document.getElementById('output').textContent = '';
+    }
+
+    function checkLocalStorage() {
+      clearOutput();
+      output('=== Checking LocalStorage ===\n');
+
+      const meetingsKey = 'jinni_meetings';
+      const meetingsJSON = localStorage.getItem(meetingsKey);
+
+      if (!meetingsJSON) {
+        output('No meetings found in localStorage');
+        return;
+      }
+
+      try {
+        const meetings = JSON.parse(meetingsJSON);
+        output(`Total meetings: ${meetings.length}\n`);
+
+        // Check for duplicate IDs
+        const ids = meetings.map(m => m.id);
+        const uniqueIds = new Set(ids);
+        output(`Unique IDs: ${uniqueIds.size}`);
+        output(`Duplicate IDs: ${ids.length - uniqueIds.size}\n`);
+
+        if (ids.length !== uniqueIds.size) {
+          output('⚠️ DUPLICATE IDs FOUND:');
+          const seen = new Set();
+          ids.forEach((id, index) => {
+            if (seen.has(id)) {
+              output(`  - Duplicate ID "${id}" at index ${index}`);
+            }
+            seen.add(id);
+          });
+          output('');
+        }
+
+        // List all meetings
+        output('All meetings:');
+        meetings.forEach((m, i) => {
+          output(`  ${i + 1}. ID: ${m.id}, Title: ${m.title}, Date: ${m.date}`);
+        });
+
+        // Check for legacy timestamp IDs
+        const legacyIds = meetings.filter(m => /^\d{10,13}$/.test(m.id));
+        if (legacyIds.length > 0) {
+          output(`\n⚠️ LEGACY TIMESTAMP IDs: ${legacyIds.length}`);
+          legacyIds.forEach(m => {
+            output(`  - ID: ${m.id} (pure timestamp)`);
+          });
+        }
+
+      } catch (e) {
+        output(`Error parsing meetings: ${e.message}`);
+      }
+    }
+
+    function repairStorage() {
+      clearOutput();
+      output('=== Repairing Storage ===\n');
+
+      const meetingsKey = 'jinni_meetings';
+      const meetingsJSON = localStorage.getItem(meetingsKey);
+
+      if (!meetingsJSON) {
+        output('No meetings to repair');
+        return;
+      }
+
+      const meetings = JSON.parse(meetingsJSON);
+      output(`Before: ${meetings.length} meetings`);
+
+      // Fix duplicate IDs
+      const seen = new Map(); // content hash -> first index
+      const repaired = [];
+
+      for (let i = 0; i < meetings.length; i++) {
+        const m = meetings[i];
+        let meeting = { ...m };
+
+        // Check if ID is a legacy timestamp
+        if (/^\d{10,13}$/.test(meeting.id)) {
+          output(`Repairing legacy ID: ${meeting.id}`);
+          meeting.id = `meeting_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+        }
+
+        // Check for duplicate ID
+        if (repaired.some(r => r.id === meeting.id)) {
+          output(`Repairing duplicate ID: ${meeting.id}`);
+          meeting.id = `meeting_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+        }
+
+        // Check for content duplicates
+        const contentKey = `${meeting.title}|${meeting.date}|${meeting.duration}`;
+        const existingIndex = seen.get(contentKey);
+
+        if (existingIndex !== undefined) {
+          output(`Removing duplicate content: ${meeting.title} (${meeting.date})`);
+          continue; // Skip this meeting
+        }
+
+        seen.set(contentKey, i);
+        repaired.push(meeting);
+      }
+
+      output(`After: ${repaired.length} meetings`);
+      output(`Removed: ${meetings.length - repaired.length} duplicate records\n`);
+
+      // Save back to localStorage
+      localStorage.setItem(meetingsKey, JSON.stringify(repaired));
+      output('✅ Storage repaired and saved!\n');
+
+      // Verify no duplicates remain
+      const ids = repaired.map(m => m.id);
+      const uniqueIds = new Set(ids);
+      output(`Verification: ${ids.length} total IDs, ${uniqueIds.size} unique IDs`);
+
+      if (ids.length === uniqueIds.size) {
+        output('✅ No duplicate IDs remain!');
+      } else {
+        output('⚠️ WARNING: Duplicate IDs still exist!');
+      }
+    }
+
+    function clearStorage() {
+      if (confirm('Are you sure you want to clear all meetings?')) {
+        localStorage.removeItem('jinni_meetings');
+        output('✅ All meetings cleared from localStorage');
+      }
+    }
+
+    // Auto-check on load
+    window.onload = () => {
+      checkLocalStorage();
+    };
+  </script>
+</body>
+</html>

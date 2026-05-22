@@ -1,9 +1,20 @@
-[server]
-maxUploadSize = 3072
-headless = true
+[general]
+email = ""
 
 [browser]
 gatherUsageStats = false
+serverAddress = "localhost"
+serverPort = 8501
 
-[logger]
-level = "info"
+[server]
+headless = true
+enableCORS = false
+enableXsrfProtection = true
+
+[theme]
+base = "light"
+primaryColor = "#163B5C"
+backgroundColor = "#F9F9FF"
+secondaryBackgroundColor = "#FFFFFF"
+textColor = "#111C2D"
+font = "sans serif"

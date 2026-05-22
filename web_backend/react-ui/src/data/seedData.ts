@@ -24,7 +24,7 @@ export const seedMeetings: Meeting[] = [
     date: '2024-10-25',
     duration: '1h 12m',
     participants: ['David', 'Eve'],
-    status: 'processing',
+    status: 'transcribing',
     progress: 68,
     templateId: '3',
     createdAt: '2024-10-25T14:00:00Z',

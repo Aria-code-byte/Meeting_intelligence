@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Streamlit 诊断工具</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            max-width: 900px;
+            margin: 30px auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        h1 { color: #667eea; margin-bottom: 10px; }
+        h2 { color: #333; font-size: 18px; margin-top: 20px; }
+        .status-ok { color: #10b981; font-weight: bold; }
+        .status-error { color: #ef4444; font-weight: bold; }
+        pre {
+            background: #1f2937;
+            color: #10b981;
+            padding: 15px;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+        .test-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 14px;
+        }
+        .test-btn:hover { background: #5568d3; }
+        .result {
+            margin-top: 10px;
+            padding: 10px;
+            background: #f3f4f6;
+            border-radius: 6px;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>🔍 Streamlit 诊断工具</h1>
+        <p><strong>浏览器：</strong><span id="browser"></span></p>
+        <p><strong>时间：</strong><span id="time"></span></p>
+    </div>
+
+    <div class="card">
+        <h2>1️⃣ 基础连接测试</h2>
+        <button class="test-btn" onclick="testStreamlit()">测试 Streamlit 连接</button>
+        <div id="result1" class="result" style="display:none;"></div>
+    </div>
+
+    <div class="card">
+        <h2>2️⃣ JavaScript 功能测试</h2>
+        <button class="test-btn" onclick="testJS()">测试 JavaScript</button>
+        <div id="result2" class="result" style="display:none;"></div>
+    </div>
+
+    <div class="card">
+        <h2>3️⃣ Fetch API 测试</h2>
+        <button class="test-btn" onclick="testFetch()">测试 Fetch 请求</button>
+        <div id="result3" class="result" style="display:none;"></div>
+    </div>
+
+    <div class="card">
+        <h2>4️⃣ 浏览器控制台错误</h2>
+        <p>请按 F12 打开开发者工具，然后：</p>
+        <ol>
+            <li>点击 <strong>Console</strong> 标签</li>
+            <li>查看是否有红色错误信息</li>
+            <li>截图发送给我</li>
+        </ol>
+        <button class="test-btn" onclick="captureErrors()">捕获控制台错误</button>
+        <div id="result4" class="result" style="display:none;"></div>
+    </div>
+
+    <div class="card">
+        <h2>5️⃣ 手动访问 Streamlit</h2>
+        <a href="http://localhost:9003" target="_blank" style="display:block;padding:15px;background:#667eea;color:white;text-decoration:none;border-radius:6px;text-align:center;margin-top:10px;">
+            🚀 打开 http://localhost:9003
+        </a>
+        <p style="margin-top:10px;font-size:13px;color:#6b7280;">
+            如果打开后页面空白，请：<br>
+            1. 在空白页按 F12<br>
+            2. 查看 Console 标签的错误<br>
+            3. 查看 Network 标签是否有红色请求
+        </p>
+    </div>
+
+    <script>
+        // 显示浏览器信息
+        document.getElementById('browser').textContent = navigator.userAgent;
+        document.getElementById('time').textContent = new Date().toLocaleString('zh-CN');
+
+        // 测试1: Streamlit 连接
+        async function testStreamlit() {
+            const result = document.getElementById('result1');
+            result.style.display = 'block';
+            result.innerHTML = '正在测试...';
+
+            try {
+                const response = await fetch('http://localhost:9003');
+                const text = await response.text();
+
+                if (text.includes('streamlit') || text.includes('root')) {
+                    result.innerHTML = `<span class="status-ok">✅ Streamlit 响应正常</span><br>状态码: ${response.status}<br>内容长度: ${text.length} 字符`;
+                } else {
+                    result.innerHTML = `<span class="status-error">❌ Streamlit 响应异常</span><br>内容预览: ${text.substring(0, 200)}...`;
+                }
+            } catch (error) {
+                result.innerHTML = `<span class="status-error">❌ 连接失败: ${error.message}</span>`;
+            }
+        }
+
+        // 测试2: JavaScript 功能
+        function testJS() {
+            const result = document.getElementById('result2');
+            result.style.display = 'block';
+
+            try {
+                // 测试基本 JS 功能
+                const obj = { test: 'value' };
+                const arr = [1, 2, 3];
+                const arrow = () => 'works';
+
+                result.innerHTML = `<span class="status-ok">✅ JavaScript 功能正常</span><br>对象: ${JSON.stringify(obj)}<br>数组: ${arr.join(',')}<br>箭头函数: ${arrow()}`;
+            } catch (error) {
+                result.innerHTML = `<span class="status-error">❌ JavaScript 错误: ${error.message}</span>`;
+            }
+        }
+
+        // 测试3: Fetch API
+        async function testFetch() {
+            const result = document.getElementById('result3');
+            result.style.display = 'block';
+            result.innerHTML = '正在测试...';
+
+            try {
+                const response = await fetch('http://localhost:9003/_stcore/health');
+                result.innerHTML = `<span class="status-ok">✅ Fetch API 正常</span><br>Health 状态: ${response.status}`;
+            } catch (error) {
+                result.innerHTML = `<span class="status-error">❌ Fetch 失败: ${error.message}</span>`;
+            }
+        }
+
+        // 测试4: 捕获控制台错误
+        function captureErrors() {
+            const result = document.getElementById('result4');
+            result.style.display = 'block';
+
+            // 监听错误
+            const errors = [];
+            const originalError = console.error;
+            console.error = function(...args) {
+                errors.push(args.join(' '));
+                originalError.apply(console, args);
+            };
+
+            setTimeout(() => {
+                if (errors.length > 0) {
+                    result.innerHTML = `<span class="status-error">捕获到 ${errors.length} 个错误:</span><br><pre>${errors.join('\n')}</pre>`;
+                } else {
+                    result.innerHTML = `<span class="status-ok">✅ 没有捕获到错误（但仍请手动检查控制台）</span>`;
+                }
+            }, 1000);
+        }
+    </script>
+</body>
+</html>
