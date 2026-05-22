@@ -491,7 +491,7 @@ export function SummaryDetailPage({ currentPage, meetingId, templates, onBack }:
   return (
     <div className="flex gap-6">
       {/* Left Sidebar */}
-      <div className="w-[270px] flex-shrink-0 space-y-4">
+      <div className="w-full max-w-[270px] flex-shrink-0 space-y-4">
         <button
           onClick={onBack}
           className="flex items-center gap-2 text-[#536172] hover:text-[#061B35] transition-colors"

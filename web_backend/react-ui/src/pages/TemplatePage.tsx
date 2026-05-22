@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Plus, X, Check, Eye } from 'lucide-react'
 import { TemplateCard } from '../components/TemplateCard'
 import type { SummaryTemplate } from '../types/models'
@@ -54,6 +54,18 @@ export function TemplatePage({
 
   const [newTemplate, setNewTemplate] = useState<TemplateForm>(defaultForm)
   const [currentTag, setCurrentTag] = useState('')
+
+  // 阶段 5 回归修复：监听新建模板事件
+  useEffect(() => {
+    const handleOpenCreate = () => {
+      console.log('[TemplatePage] 收到 open-template-create 事件')
+      resetForm()
+      setShowNewTemplateModal(true)
+    }
+
+    window.addEventListener('open-template-create', handleOpenCreate)
+    return () => window.removeEventListener('open-template-create', handleOpenCreate)
+  }, [])
 
   // 重置表单
   const resetForm = () => {
@@ -201,8 +213,15 @@ export function TemplatePage({
 
   // 删除模板
   const handleDeleteTemplate = (id: string) => {
-    onTemplateDelete(id)
-    setDeleteConfirmId(null)
+    const template = templates.find(t => t.id === id)
+    const templateName = template?.name || '该模板'
+
+    if (confirm(`确定要删除模板"${templateName}"吗？\n\n历史会议会继续使用已保存的模板快照。此操作不可撤销。`)) {
+      onTemplateDelete(id)
+      setDeleteConfirmId(null)
+    } else {
+      setDeleteConfirmId(null)
+    }
   }
 
   // 复制模板
@@ -262,23 +281,25 @@ export function TemplatePage({
       </p>
 
       {/* Category Tabs */}
-      <div className="flex items-center gap-6 border-b border-[#D6E1EA]">
-        {categories.map((category) => (
-          <button
-            key={category.id}
-            onClick={() => setActiveCategory(category.id)}
-            className={`py-3 px-1 text-sm font-medium transition-colors relative ${
-              activeCategory === category.id
-                ? 'text-[#061B35]'
-                : 'text-[#536172] hover:text-[#06162E]'
-            }`}
-          >
-            {category.label}
-            {activeCategory === category.id && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#061B35] rounded-full" />
-            )}
-          </button>
-        ))}
+      <div className="flex items-center justify-between gap-6 border-b border-[#D6E1EA]">
+        <div className="flex items-center gap-6">
+          {categories.map((category) => (
+            <button
+              key={category.id}
+              onClick={() => setActiveCategory(category.id)}
+              className={`py-3 px-1 text-sm font-medium transition-colors relative ${
+                activeCategory === category.id
+                  ? 'text-[#061B35]'
+                  : 'text-[#536172] hover:text-[#06162E]'
+              }`}
+            >
+              {category.label}
+              {activeCategory === category.id && (
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#061B35] rounded-full" />
+              )}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Template Grid */}

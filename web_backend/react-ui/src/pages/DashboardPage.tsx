@@ -234,7 +234,7 @@ export function DashboardPage({
             </div>
 
             {/* Template Selection */}
-            <div className="w-[690px] mb-4">
+            <div className="w-full max-w-full max-w-[690px] mb-4">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-[#06162E]">总结模板：</span>
                 <div className="relative">
@@ -280,7 +280,7 @@ export function DashboardPage({
 
             {/* Upload Card */}
             <div
-              className={`relative w-[690px] h-[500px] bg-white rounded-2xl border-2 transition-all p-12 text-center flex flex-col items-center justify-center cursor-pointer ${
+              className={`relative w-full max-w-[690px] h-[500px] bg-white rounded-2xl border-2 transition-all p-12 text-center flex flex-col items-center justify-center cursor-pointer ${
                 isDragging
                   ? 'border-[#061B35] bg-[#EEF8FC]'
                   : 'border-dashed border-[#061B35] hover:border-[#08213F]'
@@ -334,7 +334,7 @@ export function DashboardPage({
 
         {/* Processing View */}
         {(processingStage === 'selected' || processingStage === 'uploading' || processingStage === 'transcribing' || processingStage === 'cleaning' || processingStage === 'summarizing') && (
-          <div className="w-[690px]">
+          <div className="w-full max-w-[690px]">
             <div className="bg-white rounded-2xl p-8 mb-6">
               {/* Error Message */}
               {errorMessage && (
@@ -520,7 +520,7 @@ export function DashboardPage({
 
         {/* Failed View - Backend unavailable */}
         {(processingStage === 'idle' || processingStage === 'failed') && errorMessage && (
-          <div className="w-[690px]">
+          <div className="w-full max-w-[690px]">
             <div className="bg-white rounded-2xl p-8 border-2 border-[#FFE7E7]">
               <div className="text-center mb-6">
                 <AlertCircle className="w-16 h-16 text-[#FF6B6B] mx-auto mb-4" />
@@ -559,7 +559,7 @@ export function DashboardPage({
 
         {/* Completed View */}
         {processingStage === 'completed' && (
-          <div className="w-[690px]">
+          <div className="w-full max-w-[690px]">
             <div className="bg-white rounded-2xl p-8 mb-6">
               <div className="text-center mb-8">
                 <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -609,7 +609,7 @@ export function DashboardPage({
 
         {/* Fallback: Should never reach here, but if we do, show upload UI */}
         {!['idle', 'selected', 'uploading', 'transcribing', 'cleaning', 'summarizing', 'completed', 'failed'].includes(processingStage) && (
-          <div className="w-[690px]">
+          <div className="w-full max-w-[690px]">
             <div className="bg-white rounded-2xl p-12 text-center">
               <p className="text-[#536172] mb-4">状态异常，请重试</p>
               <button
@@ -627,7 +627,7 @@ export function DashboardPage({
 
         {/* DEFAULT FALLBACK - 永远显示上传入口 */}
         {(!['idle', 'selected', 'uploading', 'transcribing', 'cleaning', 'summarizing', 'completed', 'failed'].includes(processingStage)) && (
-          <div className="w-[690px]">
+          <div className="w-full max-w-[690px]">
             <div className="bg-yellow-50 border-2 border-yellow-200 rounded-2xl p-8 text-center mb-6">
               <AlertCircle className="w-16 h-16 text-yellow-600 mx-auto mb-4" />
               <h2 className="text-2xl font-bold text-[#06162E] mb-2">状态异常</h2>
@@ -647,7 +647,7 @@ export function DashboardPage({
       </div>
 
       {/* Right Sidebar - Recent Meetings */}
-      <div className="w-[330px] flex-shrink-0">
+      <div className="w-full max-w-[330px] flex-shrink-0">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-lg font-semibold text-[#06162E]">最近会议</h2>
           <button className="text-sm text-[#536172] hover:text-[#061B35]">

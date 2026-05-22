@@ -1,12 +1,13 @@
 import { ChevronRight } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
+import type { MeetingStatus } from '../types/models'
 
 interface RecentMeetingCardProps {
-  id: number
+  id: string
   title: string
   date: string
   duration: string
-  status: 'completed' | 'processing'
+  status: MeetingStatus
   progress: number
   icon: LucideIcon
 }
@@ -18,11 +19,29 @@ const statusConfig = {
     textColor: 'text-[#061B35]',
     progressColor: 'bg-[#061B35]',
   },
-  processing: {
-    label: '处理中',
+  transcribing: {
+    label: '转录中',
     bgColor: 'bg-[#FFF5EB]',
     textColor: 'text-[#B86E04]',
     progressColor: 'bg-[#FFA54D]',
+  },
+  summarizing: {
+    label: '总结中',
+    bgColor: 'bg-[#FFF5EB]',
+    textColor: 'text-[#B86E04]',
+    progressColor: 'bg-[#FFA54D]',
+  },
+  failed: {
+    label: '失败',
+    bgColor: 'bg-[#FEE2E2]',
+    textColor: 'text-[#DC2626]',
+    progressColor: 'bg-[#EF4444]',
+  },
+  uploaded: {
+    label: '已上传',
+    bgColor: 'bg-[#EEF8FC]',
+    textColor: 'text-[#536172]',
+    progressColor: 'bg-[#061B35]',
   },
 }
 
@@ -41,7 +60,7 @@ export function RecentMeetingCard({
       {/* Status Badge - Top Right */}
       <div className="absolute top-4 right-4">
         <span className={`text-xs px-2.5 py-1 rounded-full ${config.bgColor} ${config.textColor}`}>
-          {status === 'processing' ? `处理中 (${progress}%)` : config.label}
+          {(status === 'transcribing' || status === 'summarizing') ? `处理中 (${progress}%)` : config.label}
         </span>
       </div>
 
@@ -60,7 +79,7 @@ export function RecentMeetingCard({
       </div>
 
       {/* Progress Bar - Bottom */}
-      {status === 'processing' && (
+      {(status === 'transcribing' || status === 'summarizing') && (
         <div className="w-full h-1.5 bg-[#E4F0F8] rounded-full overflow-hidden">
           <div
             className={`h-full ${config.progressColor} rounded-full transition-all`}

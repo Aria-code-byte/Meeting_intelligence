@@ -116,8 +116,12 @@ export async function generateMeetingSummary(input: GenerateSummaryInput): Promi
           provider: data.provider,
           isFallback: data.isFallback,
         });
+
+        // 阶段 10B-5-Q4：清理助手套话
+        const cleanedSummary = cleanAssistantPreamble(data.summary);
+
         return {
-          summary: data.summary,
+          summary: cleanedSummary,
           provider: data.provider === 'backend' ? 'backend' : 'fallback',
           isFallback: data.isFallback,
           templateId: template.id,
@@ -148,6 +152,44 @@ export async function generateMeetingSummary(input: GenerateSummaryInput): Promi
     };
   }
 }
+
+/**
+ * 清理助手套话
+ * 阶段 10B-5-Q4：清理总结中的助手套话
+ */
+function cleanAssistantPreamble(summary: string): string {
+  if (!summary) {
+    return summary;
+  }
+
+  const lines = summary.split('\n');
+  const startIndex = lines.findIndex(line => {
+    const trimmed = line.trim();
+    // 跳过标题和引用标记
+    if (trimmed.startsWith('#') || trimmed.startsWith('>')) {
+      return false;
+    }
+    // 检查是否是助手套话
+    const assistantPhrases = [
+      '好的，这是',
+      '以下是',
+      '根据您提供的',
+      '我将为您',
+      '按照',
+      '生成的',
+      '本总结基于',
+    ];
+    return assistantPhrases.some(phrase => trimmed.includes(phrase));
+  });
+
+  if (startIndex > 0) {
+    console.log('[SummaryGenerationService] 清理助手套话，移除前 ' + startIndex + ' 行');
+    return lines.slice(startIndex).join('\n');
+  }
+
+  return summary;
+}
+
 
 /**
  * 内部 fallback 总结生成逻辑

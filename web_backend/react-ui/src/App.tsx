@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Sidebar } from './components/Sidebar'
 import { TopNav } from './components/TopNav'
 import { DashboardPage } from './pages/DashboardPage'
@@ -39,6 +39,22 @@ function setUrlState(page: PageType, meetingId: string | null = null) {
   }
   const newUrl = `${window.location.pathname}?${params.toString()}`
   window.history.pushState({ page, meetingId }, '', newUrl)
+}
+
+/**
+ * 格式化音频时长（秒 → Xm Ys 格式）
+ */
+function formatDuration(seconds: number): string {
+  if (!seconds || seconds < 0) return '0m'
+  const minutes = Math.floor(seconds / 60)
+  const remainingSeconds = Math.floor(seconds % 60)
+  if (minutes === 0) {
+    return `${remainingSeconds}s`
+  } else if (remainingSeconds === 0) {
+    return `${minutes}m`
+  } else {
+    return `${minutes}m ${remainingSeconds}s`
+  }
 }
 
 function App() {
@@ -95,6 +111,13 @@ function App() {
   // Search state for meetings and templates
   const [meetingSearchQuery, setMeetingSearchQuery] = useState('')
   const [templateSearchQuery, setTemplateSearchQuery] = useState('')
+
+  // 阶段 10B-5-Q5-R3：用于去重进度日志的 ref
+  const lastProgressLogRef = useRef<{
+    stage?: string
+    progress?: number
+    message?: string
+  } | null>(null)
 
   // Handle start processing with template selection
   const handleStartProcessing = async (file: File, title: string, templateId: string) => {
@@ -155,12 +178,38 @@ function App() {
       // 步骤 1: 调用转录服务
       let transcriptionResult: TranscriptionResult
       try {
+        setProcessingStage('transcribing');
+        setProcessingProgress(10);
+
         transcriptionResult = await transcribeMeetingAudio({
           meetingId: newMeeting.id,
           file,
           audioFileName: file.name,
+          // 阶段 10B-5-Q4：传入进度回调，更新真实进度
+          // 阶段 10B-5-Q5-R3：使用 useRef 去重，避免日志刷屏
+          onProgress: (stage, progress, message) => {
+            // 阶段 10B-5-Q5-R3：日志去重，只在状态真正变化时打印
+            const current = { stage, progress, message }
+            const prev = lastProgressLogRef.current
+
+            const changed =
+              !prev ||
+              prev.stage !== current.stage ||
+              prev.progress !== current.progress ||
+              prev.message !== current.message
+
+            if (changed) {
+              console.log('[App.tsx] 转录进度更新:', current)
+              lastProgressLogRef.current = current
+            }
+
+            // UI 更新必须每次都执行，不要被日志去重逻辑挡住
+            // 后端进度范围：10-100
+            setProcessingProgress(Math.max(10, Math.min(90, progress)))
+          }
         })
       } catch (error) {
+        console.error('[App.tsx] 转录服务调用失败:', error);
         transcriptionResult = {
           transcript: '',
           provider: 'fallback',
@@ -183,15 +232,46 @@ function App() {
         alignmentStatus: transcriptionResult.alignmentStatus,
         alignmentError: transcriptionResult.alignmentError,
         transcriptionIsFallback: transcriptionResult.isFallback,
+        // 阶段 10B-5-Q4：格式化 audioDuration（秒 → Xm Ys 格式）
+        duration: transcriptionResult.audioDuration
+          ? formatDuration(transcriptionResult.audioDuration)
+          : '0m',
         status: 'transcribing',
         progress: 40,
         errorMessage: transcriptionResult.error,
         lastProcessedAt: new Date().toISOString(),
       })
 
-      // 步骤 2: 调用总结服务
+      // 阶段 10B-5-R：检查 transcript 是否有效
+      // 如果 transcript 为空，不进入总结流程，标记为失败状态
+      const hasValidTranscript = transcriptionResult.transcript &&
+                                 transcriptionResult.transcript.trim().length > 0;
+
+      if (!hasValidTranscript) {
+        // 转录失败，不调用总结服务
+        console.warn('[App.tsx] 转录结果为空，中断总结流程');
+
+        updateMeeting(newMeeting.id, {
+          status: 'failed',
+          progress: 40,
+          errorMessage: transcriptionResult.error ||
+                       '转录失败：未获取到文字稿，请重试或手动粘贴会议文字稿',
+          summary: '',
+          summaryProvider: undefined,
+          summaryIsFallback: undefined,
+        });
+
+        setProcessingStage('failed');
+        return;
+      }
+
+      // 步骤 2: 调用总结服务（仅在 transcript 有效时）
       let summaryResult: SummaryResult
       try {
+        // 阶段 10B-5-Q4：总结阶段进度 92-100
+        setProcessingStage('summarizing');
+        setProcessingProgress(92);
+
         summaryResult = await generateMeetingSummary({
           meetingId: newMeeting.id,
           transcript: transcriptionResult.transcript || '',
@@ -202,6 +282,9 @@ function App() {
             prompt: selectedTemplate.prompt,
           } : undefined,
         })
+
+        // 阶段 10B-5-Q4：总结完成
+        setProcessingProgress(100);
       } catch (error) {
         console.error('[App.tsx] 总结服务调用失败:', error);
         summaryResult = {
@@ -250,6 +333,20 @@ function App() {
       setProcessingProgress(0)
       setProcessingMeetingId(null)
     }
+  }
+
+  // 阶段 5 回归修复：处理新建模板按钮点击
+  const handleCreateTemplate = () => {
+    console.log('[App.tsx] 新建模板按钮被点击')
+    // 导航到模板页面并触发创建 modal
+    setCurrentPage('templates')
+    setUrlState('templates', null)
+    // 使用 URL 参数触发 modal 打开
+    const url = new URL(window.location.href)
+    url.searchParams.set('create', 'true')
+    window.history.replaceState({}, '', url)
+    // 触发事件通知 TemplatePage
+    window.dispatchEvent(new CustomEvent('open-template-create'))
   }
 
   const handleMeetingClick = (meeting: Meeting) => {
@@ -309,6 +406,7 @@ function App() {
           onMeetingSearchChange={setMeetingSearchQuery}
           templateSearchQuery={templateSearchQuery}
           onTemplateSearchChange={setTemplateSearchQuery}
+          onCreateTemplate={handleCreateTemplate}
         />
 
         <main className="flex-1 overflow-auto px-9 py-8">

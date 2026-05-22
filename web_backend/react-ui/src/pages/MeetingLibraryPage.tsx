@@ -1,7 +1,10 @@
 import { useState, useMemo, useEffect } from 'react'
-import { SlidersHorizontal, ChevronLeft, ChevronRight, MoreVertical, Trash2, Eye, RotateCcw, Check, X, TrendingUp, Phone, Users, Palette, Megaphone, Edit2 } from 'lucide-react'
+import { SlidersHorizontal, ChevronLeft, ChevronRight, MoreVertical, Trash2, Eye, RotateCcw, Check, X, TrendingUp, Phone, Users, Palette, Megaphone, Edit2, Download, FileDown, X as XIcon } from 'lucide-react'
 import { StatusBadge } from '../components/StatusBadge'
 import { ActionMenuPortal } from '../components/ActionMenuPortal'
+import { exportMeeting, canExport, type ExportFormat } from '../services/exportService'
+import { getUserSettings } from '../services/settingsService'
+import { useActionItems } from '../store/useAppStore'
 import type { Meeting, MeetingStatus, SummaryTemplate } from '../types/models'
 
 interface MeetingLibraryPageProps {
@@ -55,6 +58,8 @@ const statusOptions = [
 ]
 
 export function MeetingLibraryPage({ meetings, templates, searchQuery, onMeetingClick, onMeetingDelete, onMeetingStatusChange, onMeetingRename }: MeetingLibraryPageProps) {
+  const { actionItems } = useActionItems()
+
   const [statusFilter, setStatusFilter] = useState('all')
   const [showMonthFilter, setShowMonthFilter] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
@@ -63,6 +68,20 @@ export function MeetingLibraryPage({ meetings, templates, searchQuery, onMeeting
   const [regeneratingId, setRegeneratingId] = useState<string | null>(null)
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
+  const [exportingMeetingId, setExportingMeetingId] = useState<string | null>(null)
+  const [showExportDialog, setShowExportDialog] = useState(false)
+  const userSettings = getUserSettings()
+  const [selectedFormat, setSelectedFormat] = useState<ExportFormat>(userSettings.exportFormatPreference)
+  const [includeTranscript, setIncludeTranscript] = useState(userSettings.includeTranscriptByDefault)
+
+  // Reset export options when dialog opens
+  useEffect(() => {
+    if (showExportDialog) {
+      const settings = getUserSettings()
+      setSelectedFormat(settings.exportFormatPreference)
+      setIncludeTranscript(settings.includeTranscriptByDefault)
+    }
+  }, [showExportDialog])
   const [menuPosition, setMenuPosition] = useState<{
     top: number
     left: number
@@ -101,6 +120,46 @@ export function MeetingLibraryPage({ meetings, templates, searchQuery, onMeeting
     setMenuPosition(null)
     setRenamingId(null)
     setRenameValue('')
+    setShowExportDialog(false)
+  }
+
+  const handleExportStart = (meetingId: string, event: React.MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation()
+    const meeting = meetings.find(m => m.id === meetingId)
+    if (!meeting) {
+      alert('会议不存在或已被删除')
+      return
+    }
+    if (!canExport(meeting)) {
+      alert('当前会议没有可导出的内容，请先生成总结或添加文字稿。')
+      return
+    }
+    setExportingMeetingId(meetingId)
+    setShowExportDialog(true)
+    handleMenuClose()
+  }
+
+  const handleConfirmExport = () => {
+    if (!exportingMeetingId) return
+
+    const meeting = meetings.find(m => m.id === exportingMeetingId)
+    if (!meeting) {
+      alert('会议不存在或已被删除')
+      setShowExportDialog(false)
+      return
+    }
+
+    const meetingActions = actionItems.filter(a => a.meetingId === exportingMeetingId)
+
+    exportMeeting(meeting, meetingActions, {
+      format: selectedFormat,
+      includeTranscript: includeTranscript,
+      includeActionItems: true,
+      allTemplates: templates,
+    })
+
+    setShowExportDialog(false)
+    setExportingMeetingId(null)
   }
 
   // 当筛选条件变化时，重置到第一页
@@ -173,9 +232,16 @@ export function MeetingLibraryPage({ meetings, templates, searchQuery, onMeeting
   const paginatedMeetings = filteredMeetings.slice(startIndex, endIndex)
 
   const handleDelete = (id: string) => {
-    onMeetingDelete(id)
-    setDeleteConfirmId(null)
-    handleMenuClose()
+    const meeting = meetings.find(m => m.id === id)
+    const meetingTitle = meeting?.title || '该会议'
+
+    if (confirm(`确定要删除会议"${meetingTitle}"吗？\n\n此操作不可撤销，删除后无法恢复。`)) {
+      onMeetingDelete(id)
+      setDeleteConfirmId(null)
+      handleMenuClose()
+    } else {
+      setDeleteConfirmId(null)
+    }
   }
 
   const handleRegenerate = (id: string) => {
@@ -380,6 +446,13 @@ export function MeetingLibraryPage({ meetings, templates, searchQuery, onMeeting
                           <RotateCcw className={`w-4 h-4 text-[#536172] ${regeneratingId === meeting.id ? 'animate-spin' : ''}`} />
                           <span>{regeneratingId === meeting.id ? '重新生成中...' : '重新生成'}</span>
                         </button>
+                        <button
+                          onClick={(e) => handleExportStart(meeting.id, e)}
+                          className="w-full px-4 py-3 text-left text-sm hover:bg-[#EEF8FC] transition-colors flex items-center gap-3"
+                        >
+                          <Download className="w-4 h-4 text-[#536172]" />
+                          <span>导出</span>
+                        </button>
                         <div className="border-t border-[#D6E1EA]" />
                         <button
                           onClick={() => {
@@ -507,6 +580,93 @@ export function MeetingLibraryPage({ meetings, templates, searchQuery, onMeeting
           </div>
         )}
       </div>
+
+      {/* Export Dialog */}
+      {showExportDialog && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-semibold text-[#06162E]">导出会议</h3>
+              <button
+                onClick={() => {
+                  setShowExportDialog(false)
+                  setExportingMeetingId(null)
+                }}
+                className="p-1.5 text-[#536172] hover:text-[#06162E] hover:bg-[#EEF8FC] rounded-lg transition-colors"
+              >
+                <XIcon className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {/* Format Selection */}
+              <div>
+                <label className="block text-sm font-medium text-[#06162E] mb-2">
+                  导出格式
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {(['markdown', 'txt', 'json'] as ExportFormat[]).map((format) => (
+                    <button
+                      key={format}
+                      onClick={() => setSelectedFormat(format)}
+                      className={`px-4 py-3 rounded-lg text-sm font-medium transition-all ${
+                        selectedFormat === format
+                          ? 'bg-[#061B35] text-white'
+                          : 'bg-[#EEF8FC] text-[#06162E] hover:bg-[#DCEBFF]'
+                      }`}
+                    >
+                      {format === 'markdown' && 'Markdown'}
+                      {format === 'txt' && 'TXT'}
+                      {format === 'json' && 'JSON'}
+                    </button>
+                  ))}
+                </div>
+                <div className="mt-2 text-xs text-[#536172]">
+                  {selectedFormat === 'markdown' && '格式化的文档，适合阅读和编辑'}
+                  {selectedFormat === 'txt' && '纯文本格式，兼容性最好'}
+                  {selectedFormat === 'json' && '结构化数据，适合程序处理'}
+                </div>
+              </div>
+
+              {/* Options */}
+              <div className="space-y-2">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={includeTranscript}
+                    onChange={(e) => setIncludeTranscript(e.target.checked)}
+                    className="w-4 h-4 text-[#061B35] border-[#D6E1EA] rounded focus:ring-[#061B35]"
+                  />
+                  <span className="text-sm text-[#06162E]">包含完整文字稿</span>
+                </label>
+                {includeTranscript && exportingMeetingId && !meetings.find(m => m.id === exportingMeetingId)?.transcript && (
+                  <p className="text-xs text-[#FF6B6B] ml-7">当前会议暂无文字稿</p>
+                )}
+              </div>
+
+              {/* Action buttons */}
+              <div className="flex gap-3 pt-4">
+                <button
+                  onClick={() => {
+                    setShowExportDialog(false)
+                    setExportingMeetingId(null)
+                  }}
+                  className="flex-1 px-4 py-2.5 border border-[#D6E1EA] rounded-lg text-sm text-[#06162E] hover:bg-[#EEF8FC] transition-colors"
+                >
+                  取消
+                </button>
+                <button
+                  onClick={handleConfirmExport}
+                  className="flex-1 px-4 py-2.5 bg-[#061B35] text-white rounded-lg text-sm hover:bg-[#08213F] transition-colors flex items-center justify-center gap-2"
+                >
+                  <FileDown className="w-4 h-4" />
+                  导出
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
