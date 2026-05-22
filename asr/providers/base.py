@@ -62,8 +62,12 @@ class BaseASRProvider(ABC):
         if not audio_file.exists():
             raise FileNotFoundError(f"音频文件不存在: {audio_path}")
 
-        # 验证文件格式（WAV, 16kHz, mono）
-        if audio_file.suffix.lower() != ".wav":
-            raise ValueError(f"音频格式必须是 WAV: {audio_file.suffix}")
+        # 支持的音频格式（Whisper内部使用ffmpeg处理这些格式）
+        supported_formats = {".wav", ".mp3", ".mp4", ".m4a", ".webm", ".ogg", ".flac"}
+        if audio_file.suffix.lower() not in supported_formats:
+            raise ValueError(
+                f"不支持的音频格式: {audio_file.suffix}. "
+                f"支持的格式: {', '.join(supported_formats)}"
+            )
 
         # TODO: 可以添加更详细的格式验证（采样率、声道数）

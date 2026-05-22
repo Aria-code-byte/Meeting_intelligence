@@ -332,7 +332,8 @@ class WhisperXTranscriptionProvider(BaseProvider):
                 batch_size=kwargs.get("batch_size", self.batch_size),
                 skip_align=kwargs.get("skip_align", self.skip_align),
                 diarization_enabled=kwargs.get("diarization_enabled", self.diarization_enabled),
-                hf_token=kwargs.get("hf_token", self.hf_token)
+                hf_token=kwargs.get("hf_token", self.hf_token),
+                initial_prompt=kwargs.get("initial_prompt", None)  # 阶段 10B-5-Q5：新增
             )
 
             print(f"[WhisperXTranscriptionProvider] Transcription completed")
@@ -340,6 +341,7 @@ class WhisperXTranscriptionProvider(BaseProvider):
 
             # 构建返回数据
             # 注意：service 返回的 'turns' 在 API 层应映射为 'transcriptTurns'
+            raw_data = result.get("raw", {})
             data = {
                 "transcript": result.get("text", ""),
                 "transcriptTurns": result.get("turns", []),
@@ -352,7 +354,9 @@ class WhisperXTranscriptionProvider(BaseProvider):
                 "diarizationModel": result.get("diarizationModel"),
                 "alignmentStatus": result.get("alignmentStatus"),
                 "alignmentError": result.get("alignmentError"),
-                "raw": result.get("raw", {})
+                # 阶段 10B-5-Q4：从 raw 数据中提取 audioDuration
+                "audioDuration": raw_data.get("audioDuration", 0),
+                "raw": raw_data
             }
 
             processing_time = int((datetime.now() - start_datetime).total_seconds() * 1000)
