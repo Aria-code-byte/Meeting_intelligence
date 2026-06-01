@@ -125,6 +125,14 @@ if API_ROUTES_AVAILABLE:
     app.include_router(api_router)  # api_router 已经定义了 prefix="/api/v1"
     print("[INFO] Provider adapter API routes registered at /api/v1/*")
 
+# 注册优化服务路由
+try:
+    from backend.enhancement_service import router as enhancement_router
+    app.include_router(enhancement_router)
+    print("[INFO] Enhancement service routes registered at /api/v1/enhancement/*")
+except ImportError:
+    print("[WARNING] enhancement_service not available")
+
 # ============================================================
 # CORS 配置
 # ============================================================
@@ -134,8 +142,19 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:8501",  # Streamlit 前端
         "http://127.0.0.1:8501",
-        "http://localhost:5173",  # Vite React 前端
+        # Vite React 前端（支持多个端口）
+        "http://localhost:5173",
         "http://127.0.0.1:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5174",
+        "http://localhost:5175",
+        "http://127.0.0.1:5175",
+        "http://localhost:5176",
+        "http://127.0.0.1:5176",
+        "http://localhost:5177",
+        "http://127.0.0.1:5177",
+        "http://localhost:5178",
+        "http://127.0.0.1:5178",
     ],
     allow_credentials=True,
     allow_methods=["*"],

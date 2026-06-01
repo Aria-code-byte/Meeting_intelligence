@@ -1,12 +1,13 @@
 import { useState, useEffect, useCallback } from 'react'
-import { ArrowLeft, Copy, RefreshCw, Download, CheckCircle2, FileText, Users, Calendar, Clock, AlertCircle, Save, Edit2, X, Plus, Trash2, FileDown } from 'lucide-react'
+import { ArrowLeft, Copy, RefreshCw, Download, CheckCircle2, FileText, Users, Calendar, Clock, AlertCircle, Save, Edit2, X, Plus, Trash2, FileDown, Sparkles, Loader2 } from 'lucide-react'
 import { ActionItemCard } from '../components/ActionItemCard'
 import { useMeetings, useActionItems } from '../store/useAppStore'
 import { generateFallbackSummary, validateTranscript, generateMeetingSummary, markSummaryAsManual } from '../services/summaryGenerationService'
 import { exportMeeting, canExport, type ExportFormat } from '../services/exportService'
 import { getUserSettings } from '../services/settingsService'
+import { enhanceTranscript } from '../services/enhancementService'
 import type { PageType } from '../App'
-import type { Meeting, ActionItem, TranscriptTurn } from '../types/models'
+import type { Meeting, ActionItem, TranscriptTurn, EnhancedTranscriptTurn } from '../types/models'
 
 // 阶段 10B-4：辅助函数 - 格式化时间
 function formatTimestamp(seconds: number | null): string {
@@ -83,6 +84,9 @@ export function SummaryDetailPage({ currentPage, meetingId, templates, onBack }:
   const [regenerating, setRegenerating] = useState(false)
   const [manualTranscript, setManualTranscript] = useState('')
   const [isEditingTranscript, setIsEditingTranscript] = useState(false)
+  // LLM 优化相关状态
+  const [isEnhancing, setIsEnhancing] = useState(false)
+  const [enhancementError, setEnhancementError] = useState<string | null>(null)
 
   // 编辑状态
   const [isEditingTitle, setIsEditingTitle] = useState(false)
@@ -374,6 +378,73 @@ export function SummaryDetailPage({ currentPage, meetingId, templates, onBack }:
   const handleCancelEditSummary = () => {
     setEditedSummary('')
     setIsEditingSummary(false)
+  }
+
+  // LLM 优化功能处理
+  const handleEnhanceTranscript = async () => {
+    if (!meeting || !meeting.transcriptTurns || meeting.transcriptTurns.length === 0) {
+      alert('该会议没有可优化的转录内容')
+      return
+    }
+
+    setIsEnhancing(true)
+    setEnhancementError(null)
+
+    try {
+      console.log('[handleEnhanceTranscript] 开始增强，原始 turns 数量:', meeting.transcriptTurns?.length)
+      console.log('[handleEnhanceTranscript] 原始 turn 示例:', meeting.transcriptTurns?.[0])
+
+      const response = await enhanceTranscript(
+        meeting.transcriptTurns,
+        'deepseek',
+        'deepseek-chat'
+      )
+
+      console.log('[handleEnhanceTranscript] API 响应:', response)
+      console.log('[handleEnhanceTranscript] 增强 turns 数量:', response.enhancedTranscriptTurns?.length)
+      console.log('[handleEnhanceTranscript] 增强 turn 示例:', response.enhancedTranscriptTurns?.[0])
+
+      if (response.success && response.enhancedTranscriptTurns) {
+        // 检查增强后的文本是否与原始文本不同
+        const firstOriginal = meeting.transcriptTurns[0]?.text || ''
+        const firstEnhanced = response.enhancedTranscriptTurns[0]?.text || ''
+        const hasChanges = firstOriginal !== firstEnhanced
+
+        console.log('[handleEnhanceTranscript] 文本对比:')
+        console.log('  原始:', firstOriginal.substring(0, 100))
+        console.log('  增强:', firstEnhanced.substring(0, 100))
+        console.log('  有变化:', hasChanges)
+
+        // 更新会议数据
+        updateMeeting(meeting.id, {
+          enhancedTranscriptTurns: response.enhancedTranscriptTurns,
+          enhancementProvider: 'deepseek',
+          enhancementModel: 'deepseek-chat',
+          isEnhanced: true,
+          enhancementTime: new Date().toISOString(),
+        })
+
+        console.log('[handleEnhanceTranscript] 数据已更新，调用 refreshMeeting()')
+        // 使用 setTimeout 确保 localStorage 数据已写入
+        setTimeout(() => {
+          refreshMeeting()
+          console.log('[handleEnhanceTranscript] refreshMeeting() 完成')
+        }, 100)
+
+        // 显示成功消息
+        const turnCount = response.enhancedTranscriptTurns.length
+        const time = response.processingTimeMs ? `${(response.processingTimeMs / 1000).toFixed(1)}秒` : '未知'
+        alert(`✅ 优化成功！已优化 ${turnCount} 条转录，耗时 ${time}`)
+      } else {
+        throw new Error(response.error || '优化失败')
+      }
+    } catch (error) {
+      console.error('[SummaryDetailPage] 优化失败:', error)
+      setEnhancementError(error instanceof Error ? error.message : '优化失败，请稍后重试')
+      alert(`❌ 优化失败：${error instanceof Error ? error.message : '请检查网络连接和API配置'}`)
+    } finally {
+      setIsEnhancing(false)
+    }
   }
 
   // Action item handlers
@@ -729,84 +800,242 @@ export function SummaryDetailPage({ currentPage, meetingId, templates, onBack }:
         )}
 
         {activeTab === 'transcript' && (
-          <div className="bg-white rounded-2xl p-6 border-2 border-[#D6E1EA]">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-[#DCEBFF] rounded-lg flex items-center justify-center">
-                  <FileText className="w-5 h-5 text-[#061B35]" />
-                </div>
-                <h2 className="text-xl font-semibold text-[#06162E]">完整文字稿</h2>
-              </div>
-              {!isEditingTranscript && !meeting.transcript && (
-                <button
-                  onClick={() => setIsEditingTranscript(true)}
-                  className="px-4 py-2 bg-[#061B35] text-white rounded-lg text-sm hover:bg-[#08213F] transition-colors"
-                >
-                  粘贴文字稿
-                </button>
-              )}
-              {isEditingTranscript && (
-                <button
-                  onClick={() => setIsEditingTranscript(false)}
-                  className="px-4 py-2 border border-[#D6E1EA] rounded-lg text-sm text-[#06162E] hover:bg-[#EEF8FC] transition-colors"
-                >
-                  取消
-                </button>
-              )}
-            </div>
-
-            {/* 阶段 10B-4：优先展示 speaker turns，否则展示普通 transcript */}
-            {meeting.transcriptTurns && meeting.transcriptTurns.length > 0 && !isEditingTranscript ? (
-              <div className="space-y-3">
-                {meeting.transcriptTurns.map((turn, index) => (
-                  <div key={index} className="p-4 bg-[#EEF8FC] rounded-lg border-l-4 border-[#061B35]">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-xs font-semibold text-[#061B35] bg-[#DCEBFF] px-2 py-1 rounded">
-                        {turn.speaker}
-                      </span>
-                      <span className="text-xs text-[#536172]">
-                        {formatTimestamp(turn.start)} - {formatTimestamp(turn.end)}
-                      </span>
-                    </div>
-                    <p className="text-sm text-[#06162E] whitespace-pre-line">{turn.text}</p>
+          <div className="space-y-4">
+            {/* 对比模式标题栏 */}
+            <div className="bg-white rounded-2xl p-4 border-2 border-[#D6E1EA]">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-[#DCEBFF] rounded-lg flex items-center justify-center">
+                    <FileText className="w-5 h-5 text-[#061B35]" />
                   </div>
-                ))}
-                {/* Transcription provider info */}
-                <div className="mt-4 p-3 bg-[#F0FDF4] rounded-lg border border-[#10B981]">
-                  <p className="text-xs text-[#06162E]">
-                    <strong>转写：</strong>
-                    {meeting.transcriptionProvider === 'whisperx' ? `WhisperX / ${meeting.transcriptionModel || 'unknown'}` : meeting.transcriptionProvider || 'unknown'}
-                    {meeting.diarizationEnabled && meeting.diarizationProvider && (
-                      <span className="ml-2">
-                        <strong>说话人分离：</strong>{meeting.diarizationProvider} / {meeting.diarizationModel || 'unknown'}
+                  <div>
+                    <h2 className="text-xl font-semibold text-[#06162E]">文字稿对比</h2>
+                    <p className="text-xs text-[#536172] mt-1">左侧为原始转录，右侧为 LLM 优化后的文字稿</p>
+                  </div>
+                </div>
+                {!isEditingTranscript && !meeting.transcript && (
+                  <button
+                    onClick={() => setIsEditingTranscript(true)}
+                    className="px-4 py-2 bg-[#061B35] text-white rounded-lg text-sm hover:bg-[#08213F] transition-colors"
+                  >
+                    粘贴文字稿
+                  </button>
+                )}
+                {!isEditingTranscript && (meeting.transcriptTurns || meeting.transcript) && (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleEnhanceTranscript}
+                      disabled={isEnhancing || !meeting.transcriptTurns || meeting.transcriptTurns.length === 0}
+                      className="flex items-center gap-2 px-4 py-2 bg-[#10B981] text-white rounded-lg text-sm hover:bg-[#059669] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      title={meeting.isEnhanced ? "重新生成增强文字稿" : "使用 LLM 优化转录文本"}
+                    >
+                      {isEnhancing ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          优化中...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-4 h-4" />
+                          {meeting.isEnhanced ? '重新优化' : 'LLM 优化'}
+                        </>
+                      )}
+                    </button>
+                    {meeting.isEnhanced && (
+                      <span className="px-3 py-1.5 bg-[#D1FAE5] text-[#065F46] text-xs rounded-full flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3" />
+                        已优化
                       </span>
                     )}
-                  </p>
+                  </div>
+                )}
+                {isEditingTranscript && (
+                  <button
+                    onClick={() => setIsEditingTranscript(false)}
+                    className="px-4 py-2 border border-[#D6E1EA] rounded-lg text-sm text-[#06162E] hover:bg-[#EEF8FC] transition-colors"
+                  >
+                    取消
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* 双栏对比布局 */}
+            {!isEditingTranscript && (meeting.transcriptTurns || meeting.transcript) && (
+              <div className="grid grid-cols-2 gap-4">
+                {/* 左栏：原始文字稿 */}
+                <div className="bg-white rounded-2xl p-5 border-2 border-[#E8E8E8]">
+                  <div className="flex items-center gap-2 mb-4 pb-3 border-b-2 border-[#E8E8E8]">
+                    <div className="w-8 h-8 bg-[#F3F4F6] rounded-lg flex items-center justify-center">
+                      <FileText className="w-4 h-4 text-[#666]" />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-semibold text-[#333]">原始文字稿</h3>
+                      <p className="text-xs text-[#999] mt-0.5">Whisper 转录结果</p>
+                    </div>
+                  </div>
+
+                  {/* 原始转录内容 */}
+                  {meeting.transcriptTurns && meeting.transcriptTurns.length > 0 ? (
+                    <div className="space-y-2">
+                      {meeting.transcriptTurns.map((turn, index) => (
+                        <div key={index} className="p-3 bg-[#F9F9F9] rounded-lg border-l-3 border-[#999]">
+                          <div className="flex items-center gap-2 mb-1.5">
+                            <span className="text-xs font-medium text-[#666] bg-[#E8E8E8] px-2 py-0.5 rounded">
+                              {turn.speaker}
+                            </span>
+                            <span className="text-xs text-[#999]">
+                              {formatTimestamp(turn.start)} - {formatTimestamp(turn.end)}
+                            </span>
+                          </div>
+                          <p className="text-sm text-[#333] whitespace-pre-line leading-relaxed">{turn.text}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : meeting.transcript ? (
+                    <div className="space-y-3">
+                      {meeting.transcript.split('\n\n').map((paragraph, index) => (
+                        <div key={index} className="p-3 bg-[#F9F9F9] rounded-lg">
+                          <p className="text-sm text-[#333] whitespace-pre-line leading-relaxed">{paragraph}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <FileText className="w-10 h-10 text-[#CCC] mx-auto mb-3" />
+                      <p className="text-sm text-[#999]">暂无原始文字稿</p>
+                    </div>
+                  )}
                 </div>
-                {/* Alignment status warning */}
+
+                {/* 右栏：LLM 优化文字稿 */}
+                <div className="bg-white rounded-2xl p-5 border-2 border-[#10B981]">
+                  <div className="flex items-center gap-2 mb-4 pb-3 border-b-2 border-[#10B981]/30">
+                    <div className="w-8 h-8 bg-[#D1FAE5] rounded-lg flex items-center justify-center">
+                      <FileText className="w-4 h-4 text-[#10B981]" />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-semibold text-[#06162E]">LLM 优化文字稿</h3>
+                      <p className="text-xs text-[#10B981] mt-0.5">AI 智能修正后的版本</p>
+                    </div>
+                  </div>
+
+                  {/* LLM 优化内容 */}
+                  {meeting.enhancedTranscriptTurns && meeting.enhancedTranscriptTurns.length > 0 ? (
+                    <div className="space-y-2">
+                      {meeting.enhancedTranscriptTurns.map((turn, index) => (
+                        <div key={index} className="p-3 bg-[#F0FDF4] rounded-lg border-l-3 border-[#10B981]">
+                          <div className="flex items-center gap-2 mb-1.5">
+                            <span className="text-xs font-medium text-[#065F46] bg-[#D1FAE5] px-2 py-0.5 rounded">
+                              {turn.speaker}
+                            </span>
+                            <span className="text-xs text-[#10B981]">
+                              {formatTimestamp(turn.start)} - {formatTimestamp(turn.end)}
+                            </span>
+                          </div>
+                          <p className="text-sm text-[#064E3B] whitespace-pre-line leading-relaxed">{turn.text}</p>
+                        </div>
+                      ))}
+                      <div className="mt-3 p-2 bg-[#D1FAE5] rounded-lg border border-[#10B981]/30 text-xs text-[#065F46]">
+                        <p>✨ 由 {meeting.enhancementProvider || 'AI'} ({meeting.enhancementModel || 'deepseek-chat'}) 优化</p>
+                      </div>
+                    </div>
+                  ) : meeting.isEnhanced ? (
+                    <div className="text-center py-8">
+                      <FileText className="w-10 h-10 text-[#A7F3D0] mx-auto mb-3" />
+                      <p className="text-sm text-[#10B981]">优化文字稿已清除</p>
+                      <p className="text-xs text-[#6EE7B7] mt-1">请重新优化</p>
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <Sparkles className="w-10 h-10 text-[#A7F3D0] mx-auto mb-3" />
+                      <p className="text-sm text-[#10B981]">暂无优化文字稿</p>
+                      <p className="text-xs text-[#6EE7B7] mt-1">点击上方"LLM 优化"按钮生成</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Provider 信息 */}
+            {!isEditingTranscript && (meeting.transcriptTurns || meeting.transcript) && (
+              <div className="bg-white rounded-xl p-4 border border-[#D6E1EA]">
+                <div className="flex items-center flex-wrap gap-6 text-xs">
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-[#536172]" />
+                    <span className="text-[#536172]">
+                      <strong>转写：</strong>
+                      {meeting.transcriptionProvider === 'whisperx' && `WhisperX / ${meeting.transcriptionModel || 'unknown'}`}
+                      {meeting.transcriptionProvider === 'backend' && '后端 Whisper'}
+                      {meeting.transcriptionProvider === 'fallback' && '本地 fallback'}
+                      {meeting.transcriptionProvider === 'manual' && '手动输入'}
+                    </span>
+                  </div>
+                  {meeting.diarizationEnabled && meeting.diarizationProvider && (
+                    <div className="flex items-center gap-2">
+                      <Users className="w-4 h-4 text-[#536172]" />
+                      <span className="text-[#536172]">
+                        <strong>说话人分离：</strong>{meeting.diarizationProvider} / {meeting.diarizationModel || 'unknown'}
+                      </span>
+                    </div>
+                  )}
+                  {meeting.enhancementProvider && (
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-[#10B981]" />
+                      <span className="text-[#065F46]">
+                        <strong>优化：</strong>{meeting.enhancementProvider} / {meeting.enhancementModel || 'unknown'}
+                      </span>
+                    </div>
+                  )}
+                </div>
                 {meeting.alignmentStatus === 'failed' && meeting.alignmentError && (
-                  <div className="flex items-start gap-2 px-3 py-2 bg-[#FFF7ED] rounded-lg border border-[#F59E0B] text-xs">
+                  <div className="flex items-start gap-2 mt-3 px-3 py-2 bg-[#FFF7ED] rounded-lg border border-[#F59E0B] text-xs">
                     <AlertCircle className="w-4 h-4 text-[#F59E0B] mt-0.5 flex-shrink-0" />
                     <p className="text-[#F59E0B]">词级对齐失败，当前使用片段时间戳。错误：{meeting.alignmentError}</p>
                   </div>
                 )}
               </div>
-            ) : meeting.transcript && !isEditingTranscript ? (
-              <div className="space-y-4">
-                {meeting.transcript.split('\n\n').map((paragraph, index) => (
-                  <div key={index} className="p-4 bg-[#EEF8FC] rounded-lg">
-                    <p className="text-sm text-[#06162E] whitespace-pre-line">{paragraph}</p>
+            )}
+
+            {/* 编辑模式 */}
+            {isEditingTranscript ? (
+              <div className="bg-white rounded-2xl p-6 border-2 border-[#D6E1EA]">
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-[#06162E] mb-2">
+                      会议文字稿
+                    </label>
+                    <textarea
+                      value={manualTranscript}
+                      onChange={(e) => setManualTranscript(e.target.value)}
+                      placeholder="请粘贴会议的文字稿，然后点击下方按钮生成总结..."
+                      className="w-full h-64 px-4 py-3 bg-white border border-[#D6E1EA] rounded-xl text-sm text-[#06162E] placeholder:text-[#536172] focus:outline-none focus:border-[#061B35] focus:ring-2 focus:ring-[#061B35]/20 transition-all resize-none"
+                    />
                   </div>
-                ))}
-                {meeting.transcriptionProvider === 'fallback' && meeting.transcriptionIsFallback && (
-                  <div className="flex items-start gap-2 px-3 py-2 bg-[#FFF7ED] rounded-lg border border-[#F59E0B] text-xs">
-                    <AlertCircle className="w-4 h-4 text-[#F59E0B] mt-0.5 flex-shrink-0" />
-                    <p className="text-[#F59E0B]">当前文字稿为 fallback 内容，尚未接入真实语音转写服务</p>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={handleSaveTranscript}
+                      disabled={!manualTranscript.trim()}
+                      className="flex-1 px-4 py-2 border border-[#D6E1EA] rounded-lg text-[#06162E] hover:bg-[#EEF8FC] transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                    >
+                      仅保存文字稿
+                    </button>
+                    <button
+                      onClick={handleGenerateSummary}
+                      disabled={!manualTranscript.trim()}
+                      className="flex-1 px-4 py-2 bg-[#061B35] text-white rounded-lg hover:bg-[#08213F] transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm flex items-center justify-center gap-2"
+                    >
+                      <Save className="w-4 h-4" />
+                      保存并生成总结
+                    </button>
                   </div>
-                )}
+                  <p className="text-xs text-[#536172]">
+                    系统将根据当前选择的模板「{getTemplateName()}」生成总结结构
+                  </p>
+                </div>
               </div>
-            ) : !isEditingTranscript ? (
-              <div className="text-center py-12">
+            ) : !meeting.transcript && !meeting.transcriptTurns ? (
+              <div className="bg-white rounded-2xl p-12 border-2 border-[#D6E1EA] text-center">
                 <AlertCircle className="w-12 h-12 text-[#536172] mx-auto mb-4" />
                 <p className="text-[#536172] mb-4">该会议尚未生成文字稿</p>
                 {meeting.errorMessage && (
@@ -819,41 +1048,7 @@ export function SummaryDetailPage({ currentPage, meetingId, templates, onBack }:
                   粘贴会议文字稿
                 </button>
               </div>
-            ) : (
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-[#06162E] mb-2">
-                    会议文字稿
-                  </label>
-                  <textarea
-                    value={manualTranscript}
-                    onChange={(e) => setManualTranscript(e.target.value)}
-                    placeholder="请粘贴会议的文字稿，然后点击下方按钮生成总结..."
-                    className="w-full h-64 px-4 py-3 bg-white border border-[#D6E1EA] rounded-xl text-sm text-[#06162E] placeholder:text-[#536172] focus:outline-none focus:border-[#061B35] focus:ring-2 focus:ring-[#061B35]/20 transition-all resize-none"
-                  />
-                </div>
-                <div className="flex gap-3">
-                  <button
-                    onClick={handleSaveTranscript}
-                    disabled={!manualTranscript.trim()}
-                    className="flex-1 px-4 py-2 border border-[#D6E1EA] rounded-lg text-[#06162E] hover:bg-[#EEF8FC] transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-                  >
-                    仅保存文字稿
-                  </button>
-                  <button
-                    onClick={handleGenerateSummary}
-                    disabled={!manualTranscript.trim()}
-                    className="flex-1 px-4 py-2 bg-[#061B35] text-white rounded-lg hover:bg-[#08213F] transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm flex items-center justify-center gap-2"
-                  >
-                    <Save className="w-4 h-4" />
-                    保存并生成总结
-                  </button>
-                </div>
-                <p className="text-xs text-[#536172] mt-2">
-                  系统将根据当前选择的模板「{getTemplateName()}」生成总结结构
-                </p>
-              </div>
-            )}
+            ) : null}
           </div>
         )}
 

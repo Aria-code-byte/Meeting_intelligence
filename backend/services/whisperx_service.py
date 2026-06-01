@@ -655,7 +655,8 @@ def normalize_turns_text(turns: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 def preprocess_audio_with_ffmpeg(
     input_path: str,
-    output_dir: Optional[str] = None
+    output_dir: Optional[str] = None,
+    enable_filters: bool = True
 ) -> Tuple[str, Dict[str, Any]]:
     """
     使用 ffmpeg 预处理音频文件
@@ -664,10 +665,14 @@ def preprocess_audio_with_ffmpeg(
     - 单声道 (mono)
     - 16kHz 采样率
     - WAV 格式
+    - 高通滤波 (80Hz) - 去除低频噪声
+    - 低通滤波 (7600Hz) - 去除高频噪声
+    - 响度归一化 (EBU R128) - 统一音量
 
     Args:
         input_path: 输入音频文件路径
         output_dir: 输出目录（可选，默认使用系统临时目录）
+        enable_filters: 是否启用音频滤波和归一化（默认 True）
 
     Returns:
         (output_path, audio_info) 元组
@@ -692,6 +697,7 @@ def preprocess_audio_with_ffmpeg(
     # -vn: 禁用视频
     # -ac 1: 单声道
     # -ar 16000: 16kHz 采样率
+    # -af: 音频滤镜链
     # -y: 覆盖输出文件
     cmd = [
         "ffmpeg",
@@ -700,9 +706,20 @@ def preprocess_audio_with_ffmpeg(
         "-ac", "1",  # 单声道
         "-ar", "16000",  # 16kHz
         "-acodec", "pcm_s16le",  # PCM 16-bit little-endian
-        "-y",  # 覆盖输出文件
-        str(output_path)
     ]
+
+    # 添加音频滤镜（可选）
+    if enable_filters:
+        # 滤镜链：高通滤波 -> 低通滤波 -> 响度归一化
+        # highpass=f=80: 去除80Hz以下的低频噪声（如风声、电流声）
+        # lowpass=f=7600: 去除7600Hz以上的高频噪声（如嘶嘶声）
+        # loudnorm: EBU R128响度归一化，统一音量
+        audio_filter = "highpass=f=80,lowpass=f=7600,loudnorm"
+        cmd.extend(["-af", audio_filter])
+        print(f"[WhisperX] 启用音频滤镜: {audio_filter}")
+
+    cmd.append("-y")  # 覆盖输出文件
+    cmd.append(str(output_path))
 
     print(f"[WhisperX] 开始音频预处理...")
     print(f"[WhisperX] 输入: {input_path}")
@@ -710,11 +727,15 @@ def preprocess_audio_with_ffmpeg(
 
     try:
         # 执行 ffmpeg 命令
+        # 超时时间根据文件大小动态调整：大文件给 30 分钟
+        file_size_mb = input_path_obj.stat().st_size / (1024 * 1024)
+        ffmpeg_timeout = 1800 if file_size_mb > 1000 else 300  # 大文件 30 分钟，小文件 5 分钟
+
         result = subprocess.run(
             cmd,
             capture_output=True,
             text=True,
-            timeout=300  # 5分钟超时
+            timeout=ffmpeg_timeout
         )
 
         if result.returncode != 0:
@@ -1445,6 +1466,56 @@ def transcribe_with_whisperx(
     # 阶段 10B-5-Q2：标准化文本（提升可读性）
     turns = normalize_turns_text(raw_turns)
 
+    # ============================================================
+    # 完整后处理 Pipeline
+    # 顺序：角色映射 → 术语纠错 → 繁简统一 → 口癖清理 → 生成可读稿
+    # ============================================================
+
+    try:
+        from services.postprocessing import (
+            SpeakerRoleMapper,
+            HotwordCorrector,
+            TraditionalSimplifiedNormalizer,
+            FillerWordCleaner,
+            ReadableTranscriptGenerator
+        )
+
+        # 1. 角色映射（speaker → 主持人/主讲人等）
+        print(f"[WhisperX] 开始后处理 pipeline...")
+        mapper = SpeakerRoleMapper()
+        turns = mapper.map_roles(turns)
+        print(f"[WhisperX] ✓ 角色映射完成")
+
+        # 2. 术语纠错（文杰杯、飞檐走壁等）
+        corrector = HotwordCorrector()
+        turns = corrector.correct_turns(turns)
+        print(f"[WhisperX] ✓ 术语纠错完成")
+
+        # 3. 繁简体统一
+        normalizer = TraditionalSimplifiedNormalizer(include_smartcar_terms=True)
+        turns = normalizer.normalize_turns(turns)
+        print(f"[WhisperX] ✓ 繁简统一完成")
+
+        # 4. 口癖清理（中等强度）
+        cleaner = FillerWordCleaner(clean_strength="medium")
+        turns = cleaner.clean_turns(turns)
+        print(f"[WhisperX] ✓ 口癖清理完成")
+
+        # 5. 生成可读转录文本（带时间戳和角色）
+        generator = ReadableTranscriptGenerator()
+        readable_transcript = generator.generate_markdown(
+            turns,
+            title="会议转录",
+            include_timestamp=True,
+            include_duration=False,
+            include_speaker_id=False
+        )
+        print(f"[WhisperX] ✓ 可读转录文本生成完成")
+
+    except ImportError as e:
+        print(f"[WhisperX] 后处理模块不可用，跳过: {e}")
+        readable_transcript = None
+
     # 阶段 10B-5-Q5-R4：优先使用 raw segments 构建主 transcript
     # 质量诊断日志：对比三路文本来源
     raw_segment_text = "\n".join(
@@ -1567,6 +1638,7 @@ def transcribe_with_whisperx(
     return {
         "text": full_text,  # 标准化后的文本
         "rawText": raw_text,  # 原始文本（10B-5-Q2 新增）
+        "readableTranscript": readable_transcript,  # 可读转录文本（带时间戳和角色）
         "language": detected_language,
         "provider": "whisperx",
         "model": model,

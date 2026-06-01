@@ -123,7 +123,11 @@ async function transcribeMeetingAudioAsync(
 
     // 2. 轮询任务状态
     const pollingInterval = 2000; // 2秒
-    const maxPollingTime = 30 * 60 * 1000; // 30分钟最大轮询时间
+    // 根据文件大小动态调整超时时间：小文件 30 分钟，大文件最长 120 分钟
+    const fileSizeMB = file.size / (1024 * 1024);
+    const maxPollingTime = fileSizeMB > 500 ? 120 * 60 * 1000 :
+                          fileSizeMB > 100 ? 90 * 60 * 1000 :
+                          30 * 60 * 1000; // 小文件保持 30 分钟
     const startTime = Date.now();
 
     // 阶段 10B-5-Q5：减少日志刷屏，只在状态变化时打印
@@ -208,7 +212,8 @@ async function transcribeMeetingAudioAsync(
     }
 
     // 超时
-    throw new Error('转录任务处理超时（30分钟）');
+    const timeoutMinutes = Math.round(maxPollingTime / (60 * 1000));
+    throw new Error(`转录任务处理超时（${timeoutMinutes}分钟）`);
 
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : '异步转录失败';
