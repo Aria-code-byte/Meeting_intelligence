@@ -221,13 +221,7 @@ class LLMSummaryProvider(BaseProvider):
 
             # 提取模型信息
             model = "unknown"
-            if self.llm_client.provider == "openai":
-                model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
-            elif self.llm_client.provider == "ollama":
-                model = os.getenv("OLLAMA_MODEL", "qwen2:7b")
-            elif self.llm_client.provider == "anthropic":
-                model = os.getenv("ANTHROPIC_MODEL", "claude-3-5-sonnet-20241022")
-            elif self.llm_client.provider == "deepseek":
+            if self.llm_client.provider == "deepseek":
                 model = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
 
             return ProviderResult(
@@ -272,7 +266,7 @@ class SummaryProvider:
             # 强制使用 fallback
             print(f"[SummaryProvider] Using fallback (forced)")
             self.provider = FallbackSummaryProvider(self.config)
-        elif provider_type in ["openai", "anthropic", "ollama", "deepseek", "backend"]:
+        elif provider_type in ["deepseek", "backend"]:
             # 尝试使用 LLM
             llm_provider = LLMSummaryProvider(self.config)
 

@@ -22,7 +22,7 @@ class TestAudioUpload:
 
     def test_max_file_size(self):
         """测试最大文件大小配置"""
-        assert get_max_file_size_mb() == 500
+        assert get_max_file_size_mb() == 3072  # 3GB
 
     def test_upload_valid_mp3(self, tmp_path):
         """测试上传有效的 MP3 文件"""

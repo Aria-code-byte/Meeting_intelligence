@@ -409,14 +409,10 @@ async def get_provider_info() -> ProviderInfoResponse:
     if not summary_provider.is_using_fallback():
         if hasattr(summary_provider.provider, 'llm_client') and summary_provider.provider.llm_client:
             llm = summary_provider.provider.llm_client
-            if llm.provider == "openai":
-                summary_status["model"] = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
-            elif llm.provider == "ollama":
-                summary_status["model"] = os.getenv("OLLAMA_MODEL", "qwen2:7b")
-            elif llm.provider == "anthropic":
-                summary_status["model"] = os.getenv("ANTHROPIC_MODEL", "claude-3-5-sonnet-20241022")
-            elif llm.provider == "deepseek":
+            if llm.provider == "deepseek":
                 summary_status["model"] = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
+            else:
+                summary_status["model"] = "unknown"
         else:
             summary_status["model"] = "unknown"
     else:
@@ -485,6 +481,49 @@ class CancelJobResponse(BaseModel):
 
 
 if ASYNC_TRANSCRIPTION_AVAILABLE:
+    @api_router.get("/transcriptions/jobs")
+    async def list_transcription_jobs():
+        """
+        列出所有转录任务
+
+        Returns:
+            包含所有任务的列表
+        """
+        try:
+            manager = get_transcription_manager()
+
+            # 获取所有任务
+            jobs = []
+            for job_id, job in manager.jobs.items():
+                jobs.append({
+                    "jobId": job.job_id,
+                    "status": job.status.value,
+                    "stage": job.stage,
+                    "progress": job.progress,
+                    "message": job.message,
+                    "createdAt": job.created_at.isoformat() if job.created_at else None,
+                    "startedAt": job.started_at.isoformat() if job.started_at else None,
+                    "completedAt": job.completed_at.isoformat() if job.completed_at else None,
+                    "error": job.error
+                })
+
+            # 按创建时间排序（最新的在前）
+            jobs.sort(key=lambda x: x.get("createdAt", ""), reverse=True)
+
+            return {
+                "success": True,
+                "jobs": jobs,
+                "total": len(jobs)
+            }
+
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+                "jobs": [],
+                "total": 0
+            }
+
     @api_router.post("/transcriptions/jobs", response_model=CreateJobResponse)
     async def create_transcription_job(
         file: UploadFile = File(...),

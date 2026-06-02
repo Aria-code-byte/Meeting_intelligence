@@ -15,8 +15,8 @@ from input.types import MeetingInputResult
 # 支持的音频格式
 SUPPORTED_AUDIO_FORMATS = {".mp3", ".wav", ".m4a"}
 
-# 默认文件大小限制（500MB）
-DEFAULT_MAX_FILE_SIZE_MB = 500
+# 默认文件大小限制（3GB）
+DEFAULT_MAX_FILE_SIZE_MB = 3072
 MAX_FILE_SIZE_BYTES = DEFAULT_MAX_FILE_SIZE_MB * 1024 * 1024
 
 # 数据存储目录

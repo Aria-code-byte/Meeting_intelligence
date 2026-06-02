@@ -178,8 +178,8 @@ PREDEFINED_TEMPLATES = {
 class LLMEnhancerConfig:
     """LLM 增强器配置（深度重构版）"""
     enabled: bool = False
-    provider: str = "openai"
-    model: str = "gpt-4o-mini"
+    provider: str = "deepseek"
+    model: str = "deepseek-chat"
     max_tokens: int = 8000
     temperature: float = 0.3  # 保持默认温度兼容性
 
@@ -283,26 +283,14 @@ class LLMTranscriptEnhancer:
             logger.setLevel(logging.DEBUG)
 
     def _create_provider(self):
-        """创建 LLM Provider"""
+        """创建 LLM Provider（仅支持 DeepSeek）"""
         provider_name = self.config.provider.lower()
 
-        if provider_name == "mock":
-            from summarizer.llm.mock import MockLLMProvider
-            return MockLLMProvider()
-        elif provider_name == "openai":
-            from summarizer.llm.openai import OpenAIProvider
-            return OpenAIProvider(model=self.config.model)
-        elif provider_name == "anthropic":
-            from summarizer.llm.anthropic import AnthropicProvider
-            return AnthropicProvider(model=self.config.model)
-        elif provider_name == "glm":
-            from summarizer.llm.glm import GLMProvider
-            return GLMProvider(model=self.config.model)
-        elif provider_name == "deepseek":
+        if provider_name == "deepseek":
             from summarizer.llm.deepseek import DeepSeekProvider
             return DeepSeekProvider(model=self.config.model)
         else:
-            raise ValueError(f"不支持的 LLM 提供商: {self.config.provider}")
+            raise ValueError(f"仅支持 DeepSeek provider，不支持: {self.config.provider}")
 
     def _merge_utterances_to_blocks(
         self,

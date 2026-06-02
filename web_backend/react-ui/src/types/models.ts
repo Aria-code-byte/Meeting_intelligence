@@ -21,6 +21,17 @@ export interface TranscriptTurn {
   text: string;
 }
 
+/**
+ * EnhancedTranscriptTurn - LLM 优化后的说话人轮次
+ * 与 TranscriptTurn 结构相同，但文本经过 LLM 优化
+ */
+export interface EnhancedTranscriptTurn {
+  speaker: string;
+  start: number | null;
+  end: number | null;
+  text: string;
+}
+
 export interface Meeting {
   id: string;
   title: string;
@@ -42,6 +53,8 @@ export interface Meeting {
   transcript?: string;
   // 阶段 10B-4：新增 transcriptTurns 字段
   transcriptTurns?: TranscriptTurn[];
+  // LLM 优化后的说话人轮次
+  enhancedTranscriptTurns?: EnhancedTranscriptTurn[];
   summary?: string;
   actionItemIds?: string[];
   errorMessage?: string;
@@ -52,6 +65,11 @@ export interface Meeting {
   summaryProvider?: 'fallback' | 'backend' | 'manual';
   transcriptionIsFallback?: boolean;
   summaryIsFallback?: boolean;
+  // LLM 优化相关字段
+  enhancementProvider?: 'deepseek' | 'openai' | 'anthropic' | 'glm' | 'manual';
+  enhancementModel?: string;
+  isEnhanced?: boolean;
+  enhancementTime?: string;
   // 阶段 10B-4：新增 provider metadata 字段
   transcriptionModel?: string;
   diarizationEnabled?: boolean;

@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>导出会议数据</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 { color: #333; }
+        .section {
+            margin: 20px 0;
+            padding: 15px;
+            background: #f9f9f9;
+            border-radius: 6px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        button.success { background: #28a745; }
+        button.success:hover { background: #1e7e34; }
+        pre {
+            background: #f4f4f4;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .stat-card {
+            background: #e9ecef;
+            padding: 15px;
+            border-radius: 6px;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #007bff;
+        }
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📤 导出会议数据</h1>
+        <p>从浏览器 localStorage 中提取会议转录和总结数据</p>
+
+        <div class="section">
+            <h3>数据统计</h3>
+            <div class="stats" id="stats">
+                <div class="stat-card">
+                    <div class="stat-value" id="meetingCount">-</div>
+                    <div class="stat-label">会议数量</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="transcribedCount">-</div>
+                    <div class="stat-label">已转录</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="summarizedCount">-</div>
+                    <div class="stat-label">已总结</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h3>导出选项</h3>
+            <button onclick="exportAllMeetings()">📦 导出所有会议数据 (JSON)</button>
+            <button onclick="exportLatestMeeting()">📄 导出最新会议数据 (JSON)</button>
+            <button onclick="exportLatestTranscript()">📝 导出最新转录文本 (TXT)</button>
+            <button onclick="exportLatestSummary()">📋 导出最新总结 (TXT)</button>
+        </div>
+
+        <div class="section">
+            <h3>会议列表</h3>
+            <div id="meetingList"></div>
+        </div>
+
+        <div class="section" id="previewSection" style="display:none;">
+            <h3>最新会议预览</h3>
+            <pre id="preview"></pre>
+        </div>
+    </div>
+
+    <script>
+        const STORAGE_KEYS = {
+            MEETINGS: 'jinni_meetings',
+            TEMPLATES: 'jinni_templates',
+            ACTION_ITEMS: 'jinni_action_items'
+        };
+
+        function loadMeetings() {
+            try {
+                const data = localStorage.getItem(STORAGE_KEYS.MEETINGS);
+                return data ? JSON.parse(data) : [];
+            } catch (e) {
+                console.error('Failed to load meetings:', e);
+                return [];
+            }
+        }
+
+        function updateStats() {
+            const meetings = loadMeetings();
+
+            document.getElementById('meetingCount').textContent = meetings.length;
+            document.getElementById('transcribedCount').textContent =
+                meetings.filter(m => m.transcript).length;
+            document.getElementById('summarizedCount').textContent =
+                meetings.filter(m => m.summary).length;
+
+            // 显示会议列表
+            const listDiv = document.getElementById('meetingList');
+            if (meetings.length === 0) {
+                listDiv.innerHTML = '<p style="color: #666;">暂无会议数据</p>';
+                return;
+            }
+
+            let html = '<table style="width: 100%; border-collapse: collapse;">';
+            html += '<tr style="background: #e9ecef;"><th style="padding: 10px; text-align: left;">标题</th><th style="padding: 10px; text-align: left;">日期</th><th style="padding: 10px; text-align: center;">转录</th><th style="padding: 10px; text-align: center;">总结</th></tr>';
+
+            meetings.slice().reverse().forEach((meeting, index) => {
+                const hasTranscript = meeting.transcript ? '✅' : '❌';
+                const hasSummary = meeting.summary ? '✅' : '❌';
+                const actualIndex = meetings.length - 1 - index;
+
+                html += `<tr style="border-bottom: 1px solid #ddd;">
+                    <td style="padding: 10px;">${meeting.title || '未命名会议'}</td>
+                    <td style="padding: 10px;">${meeting.created_at || '-'}</td>
+                    <td style="padding: 10px; text-align: center;">${hasTranscript}</td>
+                    <td style="padding: 10px; text-align: center;">${hasSummary}</td>
+                </tr>`;
+            });
+
+            html += '</table>';
+            listDiv.innerHTML = html;
+        }
+
+        function exportAllMeetings() {
+            const meetings = loadMeetings();
+            downloadJSON(meetings, 'all_meetings.json');
+        }
+
+        function exportLatestMeeting() {
+            const meetings = loadMeetings();
+            if (meetings.length === 0) {
+                alert('没有会议数据');
+                return;
+            }
+            const latest = meetings[meetings.length - 1];
+            downloadJSON(latest, `meeting_${latest.id || 'latest'}.json`);
+
+            // 显示预览
+            document.getElementById('previewSection').style.display = 'block';
+            document.getElementById('preview').textContent = JSON.stringify(latest, null, 2);
+        }
+
+        function exportLatestTranscript() {
+            const meetings = loadMeetings();
+            if (meetings.length === 0) {
+                alert('没有会议数据');
+                return;
+            }
+            const latest = meetings[meetings.length - 1];
+            const transcript = latest.transcript_raw || latest.transcript_enhanced || latest.transcript;
+
+            if (!transcript) {
+                alert('最新会议没有转录数据');
+                return;
+            }
+
+            downloadText(transcript, `transcript_${latest.id || 'latest'}.txt`);
+        }
+
+        function exportLatestSummary() {
+            const meetings = loadMeetings();
+            if (meetings.length === 0) {
+                alert('没有会议数据');
+                return;
+            }
+            const latest = meetings[meetings.length - 1];
+            const summary = latest.summary;
+
+            if (!summary) {
+                alert('最新会议没有总结数据');
+                return;
+            }
+
+            downloadText(summary, `summary_${latest.id || 'latest'}.txt`);
+        }
+
+        function downloadJSON(data, filename) {
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function downloadText(text, filename) {
+            const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // 页面加载时更新统计
+        updateStats();
+    </script>
+</body>
+</html>

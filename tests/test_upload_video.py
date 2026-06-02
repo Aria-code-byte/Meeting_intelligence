@@ -22,7 +22,7 @@ class TestVideoUpload:
 
     def test_max_file_size(self):
         """测试最大文件大小配置"""
-        assert get_max_file_size_mb() == 2048  # 2GB
+        assert get_max_file_size_mb() == 3072  # 3GB
 
     def test_upload_valid_mp4(self, tmp_path):
         """测试上传有效的 MP4 文件"""

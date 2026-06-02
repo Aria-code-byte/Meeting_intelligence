@@ -224,46 +224,17 @@ class TemplateStorage:
 # LLM 服务
 # ============================================================
 
-def create_llm_provider(provider_name: str = "mock", model: str = None):
-    """创建 LLM Provider"""
-    if provider_name == "mock":
-        from summarizer.llm.mock import MockLLMProvider
-        return MockLLMProvider()
-
-    elif provider_name == "glm":
-        from summarizer.llm.glm import GLMProvider
-        api_key = os.environ.get("ZHIPU_API_KEY")
-        if not api_key:
-            raise RuntimeError("未设置 ZHIPU_API_KEY 环境变量")
-        model = model or os.environ.get("DEFAULT_LLM_MODEL", "glm-4-flash")
-        return GLMProvider(api_key=api_key, model=model)
-
-    elif provider_name == "openai":
-        from summarizer.llm.openai import OpenAIProvider
-        api_key = os.environ.get("OPENAI_API_KEY")
-        if not api_key:
-            raise RuntimeError("未设置 OPENAI_API_KEY 环境变量")
-        model = model or os.environ.get("DEFAULT_LLM_MODEL", "gpt-4o-mini")
-        return OpenAIProvider(api_key=api_key, model=model)
-
-    elif provider_name == "anthropic":
-        from summarizer.llm.anthropic import AnthropicProvider
-        api_key = os.environ.get("ANTHROPIC_API_KEY")
-        if not api_key:
-            raise RuntimeError("未设置 ANTHROPIC_API_KEY 环境变量")
-        model = model or os.environ.get("DEFAULT_LLM_MODEL", "claude-3-5-sonnet-20241022")
-        return AnthropicProvider(api_key=api_key, model=model)
-
-    elif provider_name == "deepseek":
+def create_llm_provider(provider_name: str = "deepseek", model: str = None):
+    """创建 LLM Provider（仅支持 DeepSeek）"""
+    if provider_name == "deepseek":
         from summarizer.llm.deepseek import DeepSeekProvider
         api_key = os.environ.get("DEEPSEEK_API_KEY")
         if not api_key:
             raise RuntimeError("未设置 DEEPSEEK_API_KEY 环境变量")
         model = model or "deepseek-chat"  # 使用 DeepSeek 默认模型
         return DeepSeekProvider(api_key=api_key, model=model)
-
     else:
-        raise ValueError(f"不支持的 provider: {provider_name}")
+        raise ValueError(f"仅支持 DeepSeek provider，不支持: {provider_name}")
 
 
 # ============================================================

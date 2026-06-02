@@ -43,41 +43,16 @@ def get_output_timestamp() -> str:
 # ============================================================
 
 def create_llm_provider(provider_name: str, model: str = None):
-    """创建 LLM Provider"""
-    if provider_name == "mock":
-        from summarizer.llm.mock import MockLLMProvider
-        return MockLLMProvider()
-
-    elif provider_name == "glm":
-        from summarizer.llm.glm import GLMProvider
-        api_key = os.environ.get("ZHIPU_API_KEY")
+    """创建 LLM Provider（仅支持 DeepSeek）"""
+    if provider_name == "deepseek":
+        from summarizer.llm.deepseek import DeepSeekProvider
+        api_key = os.environ.get("DEEPSEEK_API_KEY")
         if not api_key:
-            raise RuntimeError(
-                "未设置 ZHIPU_API_KEY 环境变量\n"
-                "请设置: export ZHIPU_API_KEY=your-key\n"
-                "或在 .env 文件中添加: ZHIPU_API_KEY=your-key"
-            )
-        model = model or os.environ.get("DEFAULT_LLM_MODEL", "glm-4-flash")
-        return GLMProvider(api_key=api_key, model=model)
-
-    elif provider_name == "openai":
-        from summarizer.llm.openai import OpenAIProvider
-        api_key = os.environ.get("OPENAI_API_KEY")
-        if not api_key:
-            raise RuntimeError("未设置 OPENAI_API_KEY 环境变量")
-        model = model or os.environ.get("DEFAULT_LLM_MODEL", "gpt-4o-mini")
-        return OpenAIProvider(api_key=api_key, model=model)
-
-    elif provider_name == "anthropic":
-        from summarizer.llm.anthropic import AnthropicProvider
-        api_key = os.environ.get("ANTHROPIC_API_KEY")
-        if not api_key:
-            raise RuntimeError("未设置 ANTHROPIC_API_KEY 环境变量")
-        model = model or os.environ.get("DEFAULT_LLM_MODEL", "claude-3-5-sonnet-20241022")
-        return AnthropicProvider(api_key=api_key, model=model)
-
+            raise RuntimeError("未设置 DEEPSEEK_API_KEY 环境变量")
+        model = model or os.environ.get("DEFAULT_LLM_MODEL", "deepseek-chat")
+        return DeepSeekProvider(api_key=api_key, model=model)
     else:
-        raise ValueError(f"不支持的 provider: {provider_name}")
+        raise ValueError(f"仅支持 DeepSeek provider，不支持: {provider_name}")
 
 
 # ============================================================
@@ -430,15 +405,13 @@ def main():
         epilog="""
 示例:
   python -m meeting_intelligence meeting.mp4
-  python -m meeting_intelligence meeting.mp3 --provider glm
-  python -m meeting_intelligence meeting.mp4 --provider glm --template product-manager
+  python -m meeting_intelligence meeting.mp3 --template product-manager
         """
     )
     parser.add_argument('input', help='输入文件路径')
     parser.add_argument('--template', '-t', default='general', help='模板名称（默认: general）')
-    parser.add_argument('--provider', '-p', default='mock',
-                       choices=['mock', 'glm', 'openai', 'anthropic'],
-                       help='LLM 提供商（默认: mock）')
+    parser.add_argument('--provider', '-p', default='deepseek',
+                       help='LLM 提供商（默认: deepseek）')
     parser.add_argument('--model', '-m', help='LLM 模型名称')
     parser.add_argument('--no-save', action='store_true', help='不保存结果到文件')
 

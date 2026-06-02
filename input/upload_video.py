@@ -16,8 +16,8 @@ from input.upload_audio import _get_timestamp, DATA_DIR
 # 支持的视频格式
 SUPPORTED_VIDEO_FORMATS = {".mp4", ".mkv", ".mov"}
 
-# 默认文件大小限制（2GB - 视频文件通常较大）
-DEFAULT_MAX_VIDEO_SIZE_MB = 2048
+# 默认文件大小限制（3GB）
+DEFAULT_MAX_VIDEO_SIZE_MB = 3072
 MAX_VIDEO_SIZE_BYTES = DEFAULT_MAX_VIDEO_SIZE_MB * 1024 * 1024
 
 

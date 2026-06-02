@@ -46,33 +46,28 @@ if __name__ == "__main__":
     import argparse
 
     # 从环境变量读取默认 provider
-    DEFAULT_LLM = os.environ.get("DEFAULT_LLM_PROVIDER", "glm")
+    DEFAULT_LLM = os.environ.get("DEFAULT_LLM_PROVIDER", "deepseek")
 
     parser = argparse.ArgumentParser(
         description="AI 会议内容理解助手",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 示例:
-  python meeting_cli.py                # 使用默认 LLM（智谱 AI）
-  python meeting_cli.py --llm mock      # 使用 Mock LLM（演示）
-  python meeting_cli.py --llm glm       # 使用智谱 AI
-  python meeting_cli.py --llm openai    # 使用 OpenAI
+  python meeting_cli.py                # 使用 DeepSeek
+  python meeting_cli.py --llm deepseek # 使用 DeepSeek
 
 环境变量 (.env 文件):
-  ZHIPU_API_KEY        智谱 AI API Key
-  OPENAI_API_KEY       OpenAI API Key
-  ANTHROPIC_API_KEY    Anthropic API Key
-  DEFAULT_LLM_PROVIDER 默认 LLM 提供商 (glm/openai/anthropic/mock)
-  DEFAULT_LLM_MODEL    默认模型名称
-  WHISPER_MODEL        Whisper 模型大小 (tiny/base/small/medium/large)
+  DEEPSEEK_API_KEY      DeepSeek API Key
+  DEFAULT_LLM_PROVIDER  默认 LLM 提供商（仅支持 deepseek）
+  DEFAULT_LLM_MODEL     默认模型名称
+  WHISPER_MODEL         Whisper 模型大小 (tiny/base/small/medium/large)
         """
     )
 
     parser.add_argument(
         "--llm", "-l",
         default=DEFAULT_LLM,
-        choices=["mock", "glm", "openai", "anthropic", "deepseek"],
-        help=f"LLM 提供商（默认: {DEFAULT_LLM}）"
+        help="LLM 提供商（默认: deepseek）"
     )
 
     args = parser.parse_args()

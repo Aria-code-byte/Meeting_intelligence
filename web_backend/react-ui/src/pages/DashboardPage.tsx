@@ -80,10 +80,10 @@ export function DashboardPage({
   // 3. User starts a new upload
 
   const handleFileSelect = (file: File) => {
-    // Validate file size (500MB max as per Stage 9A requirements)
-    const maxSize = 500 * 1024 * 1024 // 500MB
+    // Validate file size (3GB max)
+    const maxSize = 3072 * 1024 * 1024 // 3GB
     if (file.size > maxSize) {
-      setErrorMessage('文件过大，请上传 500MB 以内的文件')
+      setErrorMessage('文件过大，请上传 3GB 以内的文件')
       return
     }
 
@@ -314,7 +314,7 @@ export function DashboardPage({
               </h3>
 
               <p className="text-[#536172] mb-8">
-                Supports MP3, WAV, MP4, MOV up to 2GB. Or click to browse from your device.
+                Supports MP3, WAV, MP4, MOV up to 3GB. Or click to browse from your device.
               </p>
 
               {errorMessage && (
