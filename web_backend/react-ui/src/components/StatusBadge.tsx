@@ -1,4 +1,4 @@
-import { CheckCircle2, Clock, XCircle, FileText, Upload } from 'lucide-react'
+import { CheckCircle2, Clock, XCircle, FileText, Upload, Sparkles } from 'lucide-react'
 
 interface StatusBadgeProps {
   status: string
@@ -16,6 +16,12 @@ const statusConfig = {
     bgColor: 'bg-[#E9F3FF]',
     textColor: 'text-[#061B35]',
     icon: Clock,
+  },
+  'enhancing': {
+    label: '增强优化中',
+    bgColor: 'bg-[#D1FAE5]',
+    textColor: 'text-[#065F46]',
+    icon: Sparkles,
   },
   'summarizing': {
     label: '总结中',
@@ -50,7 +56,7 @@ const statusConfig = {
   'transcription-completed': {
     label: '转录完成',
     bgColor: 'bg-[#F0E6FF]',
-    textColor: 'text-[#6B46FF]',
+    textColor: 'text-[#061B35]',
     icon: FileText,
   },
 }

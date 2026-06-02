@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { ArrowLeft, Copy, RefreshCw, Download, CheckCircle2, FileText, Users, Calendar, Clock, AlertCircle, Save, Edit2, X, Plus, Trash2, FileDown, Sparkles, Loader2 } from 'lucide-react'
+import { ArrowLeft, Copy, RefreshCw, Download, CheckCircle2, FileText, Users, Calendar, Clock, AlertCircle, Save, Edit2, X, Plus, Trash2, FileDown, Sparkles, Loader2, ChevronDown } from 'lucide-react'
 import { ActionItemCard } from '../components/ActionItemCard'
 import { useMeetings, useActionItems } from '../store/useAppStore'
 import { generateFallbackSummary, validateTranscript, generateMeetingSummary, markSummaryAsManual } from '../services/summaryGenerationService'
@@ -24,6 +24,24 @@ function formatTranscriptTurn(turn: TranscriptTurn): string {
   const startTime = formatTimestamp(turn.start)
   const endTime = formatTimestamp(turn.end)
   return `[${startTime} - ${endTime}] ${turn.speaker}\n${turn.text}`
+}
+
+// 辅助函数：将增强文字稿转换为文本格式
+function formatEnhancedTranscriptTurns(turns: EnhancedTranscriptTurn[]): string {
+  return turns.map(turn => {
+    const startTime = formatTimestamp(turn.start)
+    const endTime = formatTimestamp(turn.end)
+    return `[${startTime} - ${endTime}] ${turn.speaker}\n${turn.text}`
+  }).join('\n\n')
+}
+
+// 辅助函数：将原始文字稿转换为文本格式
+function formatTranscriptTurns(turns: TranscriptTurn[]): string {
+  return turns.map(turn => {
+    const startTime = formatTimestamp(turn.start)
+    const endTime = formatTimestamp(turn.end)
+    return `[${startTime} - ${endTime}] ${turn.speaker}\n${turn.text}`
+  }).join('\n\n')
 }
 
 interface SummaryDetailPageProps {
@@ -84,6 +102,9 @@ export function SummaryDetailPage({ currentPage, meetingId, templates, onBack }:
   const [regenerating, setRegenerating] = useState(false)
   const [manualTranscript, setManualTranscript] = useState('')
   const [isEditingTranscript, setIsEditingTranscript] = useState(false)
+  // 重新生成总结时选择的模板
+  const [selectedTemplateForRegenerate, setSelectedTemplateForRegenerate] = useState<string | null>(null)
+  const [showTemplateDropdownForRegenerate, setShowTemplateDropdownForRegenerate] = useState(false)
   // LLM 优化相关状态
   const [isEnhancing, setIsEnhancing] = useState(false)
   const [enhancementError, setEnhancementError] = useState<string | null>(null)
@@ -182,11 +203,31 @@ export function SummaryDetailPage({ currentPage, meetingId, templates, onBack }:
     setShowExportDialog(false)
   }
 
-  const handleRegenerate = async () => {
+  const handleRegenerate = async (templateId?: string) => {
     if (!meeting) return
 
-    // Check if transcript exists
-    if (!meeting.transcript || meeting.transcript.trim() === '') {
+    // 确定要使用的文字稿：优先使用增强文字稿，否则使用原文字稿
+    let transcriptToUse = ''
+    let transcriptSource = ''
+
+    // 1. 优先使用增强文字稿
+    if (meeting.enhancedTranscriptTurns && meeting.enhancedTranscriptTurns.length > 0) {
+      transcriptToUse = formatEnhancedTranscriptTurns(meeting.enhancedTranscriptTurns)
+      transcriptSource = '增强文字稿'
+    }
+    // 2. 其次使用结构化的原文字稿
+    else if (meeting.transcriptTurns && meeting.transcriptTurns.length > 0) {
+      transcriptToUse = formatTranscriptTurns(meeting.transcriptTurns)
+      transcriptSource = '原文字稿'
+    }
+    // 3. 最后使用纯文本文字稿
+    else if (meeting.transcript && meeting.transcript.trim() !== '') {
+      transcriptToUse = meeting.transcript
+      transcriptSource = '纯文本文字稿'
+    }
+
+    // 验证文字稿
+    if (!transcriptToUse || transcriptToUse.trim() === '') {
       alert('当前会议暂无文字稿，无法重新生成总结。\n\n请先在"完整文字稿"标签页添加会议文字稿。')
       setActiveTab('transcript')
       setIsEditingTranscript(true)
@@ -196,12 +237,16 @@ export function SummaryDetailPage({ currentPage, meetingId, templates, onBack }:
     setRegenerating(true)
 
     try {
-      // Template priority: templateSnapshot > templateId lookup
-      let templateToUse = templates.find(t => t.id === meeting.templateId)
-
-      if ((meeting as any).templateSnapshot) {
-        // Use template snapshot if available
-        templateToUse = (meeting as any).templateSnapshot
+      // 使用选择的模板，或回退到会议的模板
+      let templateToUse: any
+      if (templateId) {
+        templateToUse = templates.find(t => t.id === templateId)
+      } else {
+        // 模板优先级：templateSnapshot > templateId 查找
+        templateToUse = templates.find(t => t.id === meeting.templateId)
+        if ((meeting as any).templateSnapshot) {
+          templateToUse = (meeting as any).templateSnapshot
+        }
       }
 
       if (!templateToUse) {
@@ -210,39 +255,67 @@ export function SummaryDetailPage({ currentPage, meetingId, templates, onBack }:
         return
       }
 
-      // Use the unified summary generation service
+      console.log('[handleRegenerate] 开始生成总结:', {
+        transcriptSource,
+        transcriptLength: transcriptToUse.length,
+        templateName: templateToUse.name,
+        usingEnhanced: !!meeting.enhancedTranscriptTurns,
+      })
+
+      // 使用统一的总结生成服务
       const summaryResult = await generateMeetingSummary({
         meetingId: meeting.id,
-        transcript: meeting.transcript,
+        transcript: transcriptToUse,
         templateSnapshot: templateToUse ? {
           id: templateToUse.id,
           name: templateToUse.name,
+          description: templateToUse.description,
           structure: templateToUse.structure,
           prompt: templateToUse.prompt,
         } : undefined,
       })
 
       if (!summaryResult.summary && summaryResult.error) {
-        alert(summaryResult.error)
+        alert(`总结生成失败：${summaryResult.error}`)
         setRegenerating(false)
         return
       }
 
-      // Update meeting with summary and provider info
+      // 更新会议数据
       updateMeeting(meeting.id, {
         summary: summaryResult.summary,
         summaryProvider: summaryResult.provider,
         summaryIsFallback: summaryResult.isFallback,
+        templateId: templateToUse.id,
+        templateSnapshot: {
+          id: templateToUse.id,
+          name: templateToUse.name,
+          description: templateToUse.description,
+          structure: templateToUse.structure,
+          prompt: templateToUse.prompt,
+        },
         status: 'completed',
         errorMessage: undefined,
         lastProcessedAt: new Date().toISOString(),
       })
 
+      console.log('[handleRegenerate] 数据已更新，延迟刷新本地状态')
+      // 使用 setTimeout 确保 localStorage 数据已写入
       setTimeout(() => {
-        setRegenerating(false)
-      }, 500)
+        refreshMeeting()
+        console.log('[handleRegenerate] refreshMeeting() 完成')
+      }, 100)
+
+      // 显示成功消息
+      const sourceLabel = transcriptSource === '增强文字稿' ? '增强' : '原'
+      const time = summaryResult.processingTime ? `${(summaryResult.processingTime / 1000).toFixed(1)}秒` : '未知'
+      alert(`✅ 总结生成成功！\n\n使用：${sourceLabel}文字稿\n模板：${templateToUse.name}\n耗时：${time}`)
+
+      setRegenerating(false)
+      setSelectedTemplateForRegenerate(null)
     } catch (error) {
-      alert('生成总结失败，请重试')
+      console.error('[handleRegenerate] 生成总结失败:', error)
+      alert(`生成总结失败：${error instanceof Error ? error.message : '请重试'}`)
       setRegenerating(false)
     }
   }
@@ -675,14 +748,6 @@ export function SummaryDetailPage({ currentPage, meetingId, templates, onBack }:
                 <span className="text-sm">{copySuccess ? '已复制' : '复制'}</span>
               </button>
               <button
-                onClick={handleRegenerate}
-                disabled={regenerating}
-                className="flex items-center gap-2 px-4 py-2 border border-[#D6E1EA] rounded-lg text-[#06162E] hover:bg-[#EEF8FC] transition-colors disabled:opacity-50"
-              >
-                <RefreshCw className={`w-4 h-4 ${regenerating ? 'animate-spin' : ''}`} />
-                <span className="text-sm">{regenerating ? '生成中...' : '重新生成'}</span>
-              </button>
-              <button
                 onClick={handleDownload}
                 className="flex items-center gap-2 px-4 py-2 bg-[#061B35] text-white rounded-lg hover:bg-[#08213F] transition-colors"
               >
@@ -703,15 +768,78 @@ export function SummaryDetailPage({ currentPage, meetingId, templates, onBack }:
                 </div>
                 <h2 className="text-xl font-semibold text-[#06162E]">会议总结</h2>
               </div>
-              {meeting.summary && !isEditingSummary && (
+              <div className="flex items-center gap-2">
+                {/* 模板选择器 */}
+                <div className="relative">
+                  <button
+                    onClick={() => setShowTemplateDropdownForRegenerate(!showTemplateDropdownForRegenerate)}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-white border border-[#D6E1EA] rounded-lg text-[#06162E] text-sm hover:bg-[#EEF8FC] transition-colors"
+                    disabled={regenerating}
+                  >
+                    <span className="text-sm">
+                      {selectedTemplateForRegenerate
+                        ? templates.find(t => t.id === selectedTemplateForRegenerate)?.name || '选择模板'
+                        : getTemplateName()}
+                    </span>
+                    <ChevronDown className="w-4 h-4 text-[#536172]" />
+                  </button>
+
+                  {showTemplateDropdownForRegenerate && (
+                    <div className="absolute top-full right-0 mt-2 w-56 bg-white border border-[#D6E1EA] rounded-xl shadow-lg z-10 max-h-[300px] overflow-y-auto">
+                      {templates.map((template) => (
+                        <button
+                          key={template.id}
+                          onClick={() => {
+                            setSelectedTemplateForRegenerate(template.id)
+                            setShowTemplateDropdownForRegenerate(false)
+                          }}
+                          className={`w-full px-4 py-3 text-left text-sm hover:bg-[#EEF8FC] transition-colors ${
+                            selectedTemplateForRegenerate === template.id ? 'bg-[#EEF8FC]' : ''
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span>{template.name}</span>
+                            {template.id === meeting.templateId && !selectedTemplateForRegenerate && (
+                              <span className="text-xs text-[#536172] bg-[#EEF8FC] px-2 py-1 rounded">当前</span>
+                            )}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* 重新生成按钮 */}
                 <button
-                  onClick={handleEditSummary}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm text-[#536172] hover:text-[#061B35] hover:bg-[#EEF8FC] rounded-lg transition-colors"
+                  onClick={() => handleRegenerate(selectedTemplateForRegenerate || undefined)}
+                  disabled={regenerating || !meeting.transcript}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-[#10B981] text-white rounded-lg text-sm hover:bg-[#059669] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={meeting.transcript ? "使用选择的模板重新生成总结" : "请先添加文字稿"}
                 >
-                  <Edit2 className="w-4 h-4" />
-                  编辑
+                  {regenerating ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      生成中...
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="w-4 h-4" />
+                      重新生成
+                    </>
+                  )}
                 </button>
-              )}
+
+                {/* 编辑按钮 */}
+                {meeting.summary && !isEditingSummary && (
+                  <button
+                    onClick={handleEditSummary}
+                    className="flex items-center gap-2 px-3 py-1.5 text-sm text-[#536172] hover:text-[#061B35] hover:bg-[#EEF8FC] rounded-lg transition-colors"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                    编辑
+                  </button>
+                )}
+              </div>
             </div>
 
             {isEditingSummary ? (

@@ -28,6 +28,7 @@ export type ProcessingStage =
   | 'uploading'
   | 'uploaded'
   | 'transcribing'
+  | 'enhancing'
   | 'summarizing'
   | 'completed'
   | 'failed';

@@ -122,7 +122,8 @@
       "Bash(ping -c 2 huggingface.co)",
       "Bash(ping -c 2 hf-mirror.com)",
       "Bash(pkill -f \"uvicorn\")",
-      "Bash(tee /tmp/startup.log)"
+      "Bash(tee /tmp/startup.log)",
+      "Bash(git push *)"
     ]
   }
 }

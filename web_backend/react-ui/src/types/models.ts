@@ -6,6 +6,7 @@
 export type MeetingStatus =
   | 'uploaded'
   | 'transcribing'
+  | 'enhancing'
   | 'summarizing'
   | 'completed'
   | 'failed';

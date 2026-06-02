@@ -125,13 +125,21 @@ if API_ROUTES_AVAILABLE:
     app.include_router(api_router)  # api_router 已经定义了 prefix="/api/v1"
     print("[INFO] Provider adapter API routes registered at /api/v1/*")
 
-# 注册优化服务路由
+# 注册优化服务路由（使用新的模块化结构）
 try:
-    from backend.enhancement_service import router as enhancement_router
+    from backend.features.enhancement.routes import router as enhancement_router
     app.include_router(enhancement_router)
     print("[INFO] Enhancement service routes registered at /api/v1/enhancement/*")
 except ImportError:
     print("[WARNING] enhancement_service not available")
+
+# 注册总结服务路由（使用新的模块化结构）
+try:
+    from backend.features.summary.routes import router as summary_router
+    app.include_router(summary_router)
+    print("[INFO] Summary service routes registered at /api/v1/*")
+except ImportError:
+    print("[WARNING] summary_service not available")
 
 # ============================================================
 # CORS 配置
@@ -205,7 +213,7 @@ def generate_task_id(task_type: str) -> str:
 # 后台任务模拟
 # ============================================================
 
-def real_transcription_task(meeting_id: str, task_id: str, audio_path: str):
+def real_transcription_task(meeting_id: str, task_id: str, audio_path: str, enable_enhancement: bool = True):
     """真实转录任务 - 使用 Whisper ASR"""
     task = TRANSCRIPTION_TASKS.get(task_id)
     if not task:
@@ -213,6 +221,7 @@ def real_transcription_task(meeting_id: str, task_id: str, audio_path: str):
 
     print(f"[BACKEND] using real ASR for transcription")
     print(f"[BACKEND] audio file: {audio_path}")
+    print(f"[BACKEND] enable_enhancement: {enable_enhancement}")
 
     try:
         # 更新进度
@@ -230,7 +239,7 @@ def real_transcription_task(meeting_id: str, task_id: str, audio_path: str):
         )
 
         # 更新进度
-        task["progress"] = 70
+        task["progress"] = 60
         task["current_step"] = "正在整理文字稿"
 
         # 格式化转录结果
@@ -239,6 +248,7 @@ def real_transcription_task(meeting_id: str, task_id: str, audio_path: str):
         # 构建完整转录文本
         transcript_lines = []
         segments = []
+        transcript_turns = []  # 新增：用于 LLM 增强的结构化数据
 
         for utterance in utterances:
             timestamp = utterance.start_time
@@ -260,18 +270,84 @@ def real_transcription_task(meeting_id: str, task_id: str, audio_path: str):
                 "text": text
             })
 
+            # 添加到 transcript_turns（用于 LLM 增强）
+            transcript_turns.append({
+                "speaker": speaker,
+                "start": timestamp,
+                "end": timestamp + getattr(utterance, 'duration', 0),
+                "text": text
+            })
+
         full_transcript = "\n".join(transcript_lines)
 
         # 保存转录结果
         print(f"[BACKEND] transcription completed: {len(utterances)} segments")
         MEETINGS[meeting_id]["transcript"] = full_transcript
+        MEETINGS[meeting_id]["transcript_turns"] = transcript_turns  # 保存结构化数据
         MEETINGS[meeting_id]["segments"] = segments
         MEETINGS[meeting_id]["transcription_completed_at"] = datetime.now().isoformat()
         MEETINGS[meeting_id]["audio_duration"] = result.duration
 
+        # 更新进度 - 转录完成
+        task["progress"] = 80
+        task["current_step"] = "转录完成"
+
+        # 如果启用增强，触发 LLM 增强
+        if enable_enhancement and transcript_turns:
+            print(f"[BACKEND] triggering LLM enhancement for {len(transcript_turns)} turns")
+            task["current_step"] = "正在进行 LLM 增强优化"
+            MEETINGS[meeting_id]["status"] = "enhancing"
+
+            try:
+                # 调用 LLM 增强服务（同步方式）
+                import asyncio
+                from backend.features.enhancement.service import EnhancementService
+                from backend.features.enhancement.models import TranscriptTurn
+
+                enhancement_service = EnhancementService()
+
+                # 转换数据格式
+                turns_input = [
+                    TranscriptTurn(
+                        speaker=turn["speaker"],
+                        start=turn["start"],
+                        end=turn["end"],
+                        text=turn["text"]
+                    )
+                    for turn in transcript_turns
+                ]
+
+                # 在新的事件循环中执行异步增强（因为这是在后台线程中）
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    enhanced_turns = loop.run_until_complete(enhancement_service.enhance_transcript(turns_input))
+                finally:
+                    loop.close()
+
+                # 保存增强结果
+                MEETINGS[meeting_id]["enhanced_transcript_turns"] = [
+                    {
+                        "speaker": turn.speaker,
+                        "start": turn.start,
+                        "end": turn.end,
+                        "text": turn.text
+                    }
+                    for turn in enhanced_turns
+                ]
+                MEETINGS[meeting_id]["enhancement_provider"] = "deepseek"
+                MEETINGS[meeting_id]["enhancement_model"] = "deepseek-chat"
+                MEETINGS[meeting_id]["enhancement_time"] = datetime.now().isoformat()
+                MEETINGS[meeting_id]["is_enhanced"] = True
+
+                print(f"[BACKEND] LLM enhancement completed")
+            except Exception as e:
+                print(f"[BACKEND] LLM enhancement failed (non-fatal): {str(e)}")
+                # 增强失败不影响整体流程
+
         # 完成任务
         task["progress"] = 100
-        task["current_step"] = "转录完成"
+        task["current_step"] = "处理完成"
         task["status"] = "completed"
 
         print(f"[BACKEND] transcription task completed")
@@ -668,12 +744,17 @@ async def upload_meeting_file(
 # ============================================================
 
 @app.post("/api/meetings/{meeting_id}/transcribe")
-async def start_transcription(meeting_id: str, background_tasks: BackgroundTasks):
+async def start_transcription(
+    meeting_id: str,
+    background_tasks: BackgroundTasks,
+    enable_enhancement: bool = True
+):
     """
     启动会议转录任务
 
     Args:
         meeting_id: 会议 ID
+        enable_enhancement: 是否启用 LLM 增强（默认 True）
 
     Returns:
         task_id: 转录任务 ID
@@ -744,7 +825,7 @@ async def start_transcription(meeting_id: str, background_tasks: BackgroundTasks
     if use_real_asr:
         print(f"[BACKEND] using real ASR for transcription")
         target_func = real_transcription_task
-        target_args = (meeting_id, task_id, audio_path)
+        target_args = (meeting_id, task_id, audio_path, enable_enhancement)
     else:
         print(f"[BACKEND] using mock transcription")
         target_func = simulate_transcription_task

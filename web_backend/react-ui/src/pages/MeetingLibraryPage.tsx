@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
-import { SlidersHorizontal, ChevronLeft, ChevronRight, MoreVertical, Trash2, Eye, RotateCcw, Check, X, TrendingUp, Phone, Users, Palette, Megaphone, Edit2, Download, FileDown, X as XIcon } from 'lucide-react'
+import { SlidersHorizontal, ChevronLeft, ChevronRight, MoreVertical, Trash2, Eye, Check, X, TrendingUp, Phone, Users, Palette, Megaphone, Edit2, Download, FileDown, X as XIcon } from 'lucide-react'
 import { StatusBadge } from '../components/StatusBadge'
 import { ActionMenuPortal } from '../components/ActionMenuPortal'
 import { exportMeeting, canExport, type ExportFormat } from '../services/exportService'
@@ -65,7 +65,6 @@ export function MeetingLibraryPage({ meetings, templates, searchQuery, onMeeting
   const [currentPage, setCurrentPage] = useState(1)
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
-  const [regeneratingId, setRegeneratingId] = useState<string | null>(null)
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const [exportingMeetingId, setExportingMeetingId] = useState<string | null>(null)
@@ -242,15 +241,6 @@ export function MeetingLibraryPage({ meetings, templates, searchQuery, onMeeting
     } else {
       setDeleteConfirmId(null)
     }
-  }
-
-  const handleRegenerate = (id: string) => {
-    setRegeneratingId(id)
-    setTimeout(() => {
-      onMeetingStatusChange(id, 'transcribing')
-      setRegeneratingId(null)
-      handleMenuClose()
-    }, 2000)
   }
 
   const getParticipantsText = (participants: string[]) => {
@@ -437,14 +427,6 @@ export function MeetingLibraryPage({ meetings, templates, searchQuery, onMeeting
                         >
                           <Edit2 className="w-4 h-4 text-[#536172]" />
                           <span>重命名</span>
-                        </button>
-                        <button
-                          onClick={() => handleRegenerate(meeting.id)}
-                          disabled={regeneratingId === meeting.id}
-                          className="w-full px-4 py-3 text-left text-sm hover:bg-[#EEF8FC] transition-colors flex items-center gap-3 disabled:opacity-50"
-                        >
-                          <RotateCcw className={`w-4 h-4 text-[#536172] ${regeneratingId === meeting.id ? 'animate-spin' : ''}`} />
-                          <span>{regeneratingId === meeting.id ? '重新生成中...' : '重新生成'}</span>
                         </button>
                         <button
                           onClick={(e) => handleExportStart(meeting.id, e)}

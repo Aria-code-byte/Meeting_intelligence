@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect } from 'react'
-import { Upload, Lock, FileText, BarChart3, TrendingUp, Briefcase, X, CheckCircle, Play, Pause, RotateCcw, ChevronDown, AlertCircle } from 'lucide-react'
+import { Upload, Lock, FileText, BarChart3, TrendingUp, Briefcase, X, CheckCircle, Play, Pause, RotateCcw, ChevronDown, AlertCircle, Sparkles } from 'lucide-react'
 import { RecentMeetingCard } from '../components/RecentMeetingCard'
 import type { Meeting, SummaryTemplate } from '../types/models'
 
@@ -7,7 +7,7 @@ interface DashboardPageProps {
   meetings: Meeting[]
   templates: SummaryTemplate[]
   selectedFile: File | null
-  processingStage: 'idle' | 'selected' | 'uploading' | 'transcribing' | 'cleaning' | 'summarizing' | 'completed' | 'failed'
+  processingStage: 'idle' | 'selected' | 'uploading' | 'transcribing' | 'enhancing' | 'summarizing' | 'completed' | 'failed'
   processingProgress: number
   processingMeetingId: string | null
   onFileSelect: (file: File | null) => void
@@ -22,7 +22,7 @@ interface DashboardPageProps {
 const steps = [
   { id: 'uploading', label: '上传文件', icon: Upload },
   { id: 'transcribing', label: '语音转文字', icon: FileText },
-  { id: 'cleaning', label: '智能清洗', icon: RotateCcw },
+  { id: 'enhancing', label: 'LLM 增强', icon: Sparkles },
   { id: 'summarizing', label: 'AI 总结', icon: BarChart3 },
 ]
 

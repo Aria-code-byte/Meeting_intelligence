@@ -104,7 +104,7 @@ function App() {
 
   // Processing state for dashboard
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
-  const [processingStage, setProcessingStage] = useState<'idle' | 'selected' | 'uploading' | 'transcribing' | 'cleaning' | 'summarizing' | 'completed' | 'failed'>('idle')
+  const [processingStage, setProcessingStage] = useState<'idle' | 'selected' | 'uploading' | 'transcribing' | 'enhancing' | 'summarizing' | 'completed' | 'failed'>('idle')
   const [processingProgress, setProcessingProgress] = useState(0)
   const [processingMeetingId, setProcessingMeetingId] = useState<string | null>(null)
 
