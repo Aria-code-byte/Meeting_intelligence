@@ -261,7 +261,7 @@ function App() {
       let enhancedTranscriptTurns = null
       if (transcriptionResult.transcriptTurns && transcriptionResult.transcriptTurns.length > 0) {
         try {
-          console.log('[App.tsx] 开始 LLM 增强转录')
+          console.log('[App.tsx] 开始 LLM 增强转录，turns 数量:', transcriptionResult.transcriptTurns.length)
           setProcessingStage('enhancing')
           setProcessingProgress(60)
 
@@ -270,6 +270,16 @@ function App() {
             'deepseek',
             'deepseek-chat'
           )
+
+          console.log('[App.tsx] LLM 增强响应:', {
+            success: enhancementResult.success,
+            hasEnhancedTurns: !!enhancementResult.enhancedTranscriptTurns,
+            enhancedTurnsCount: enhancementResult.enhancedTranscriptTurns?.length || 0,
+            provider: enhancementResult.provider,
+            model: enhancementResult.model,
+            error: enhancementResult.error,
+            processingTimeMs: enhancementResult.processingTimeMs,
+          })
 
           if (enhancementResult.success && enhancementResult.enhancedTranscriptTurns) {
             enhancedTranscriptTurns = enhancementResult.enhancedTranscriptTurns
@@ -285,7 +295,10 @@ function App() {
           }
         } catch (error) {
           console.error('[App.tsx] LLM 增强调用失败:', error)
+          console.error('[App.tsx] 错误详情:', error instanceof Error ? error.message : String(error))
         }
+      } else {
+        console.log('[App.tsx] 跳过 LLM 增强：没有 transcriptTurns')
       }
 
       // 步骤 2: 调用总结服务

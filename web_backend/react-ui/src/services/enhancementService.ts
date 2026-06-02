@@ -37,8 +37,21 @@ export async function enhanceTranscript(
   provider: string = 'deepseek',
   model: string = 'deepseek-chat'
 ): Promise<EnhancementResponse> {
+  const url = `${API_BASE}/enhancement/enhance`
+
+  console.log('[enhancementService] 发起增强请求:', {
+    url,
+    turnsCount: transcriptTurns.length,
+    provider,
+    model,
+    firstTurn: transcriptTurns[0] ? {
+      speaker: transcriptTurns[0].speaker,
+      textPreview: transcriptTurns[0].text.substring(0, 50)
+    } : null
+  })
+
   try {
-    const response = await fetch(`${API_BASE}/enhancement/enhance`, {
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -50,14 +63,32 @@ export async function enhanceTranscript(
       } as EnhancementRequest),
     });
 
+    console.log('[enhancementService] 响应状态:', {
+      status: response.status,
+      statusText: response.statusText,
+      ok: response.ok,
+    })
+
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
+      console.error('[enhancementService] 请求失败:', errorData);
       throw new Error(errorData.error || '优化请求失败');
     }
 
-    return await response.json() as EnhancementResponse;
+    const result = await response.json() as EnhancementResponse;
+    console.log('[enhancementService] 增强结果:', {
+      success: result.success,
+      hasEnhancedTurns: !!result.enhancedTranscriptTurns,
+      enhancedTurnsCount: result.enhancedTranscriptTurns?.length || 0,
+      provider: result.provider,
+      model: result.model,
+      error: result.error,
+    })
+
+    return result;
   } catch (error) {
     console.error('[enhancementService] 优化失败:', error);
+    console.error('[enhancementService] 错误详情:', error instanceof Error ? error.message : String(error));
     throw error;
   }
 }
