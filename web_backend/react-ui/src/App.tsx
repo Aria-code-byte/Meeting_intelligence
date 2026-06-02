@@ -219,11 +219,9 @@ function App() {
         }
       }
 
-      // 更新转录结果
-      // 阶段 10B-4：保存 transcriptTurns 和 provider metadata
-      updateMeeting(newMeeting.id, {
+      // 暂存所有更新数据，最后一次性更新
+      const meetingUpdateData: any = {
         transcript: transcriptionResult.transcript,
-        // 阶段 10B-4：新增字段
         transcriptTurns: transcriptionResult.transcriptTurns,
         transcriptionProvider: transcriptionResult.provider,
         transcriptionModel: transcriptionResult.transcriptionModel,
@@ -233,40 +231,33 @@ function App() {
         alignmentStatus: transcriptionResult.alignmentStatus,
         alignmentError: transcriptionResult.alignmentError,
         transcriptionIsFallback: transcriptionResult.isFallback,
-        // 阶段 10B-5-Q4：格式化 audioDuration（秒 → Xm Ys 格式）
         duration: transcriptionResult.audioDuration
           ? formatDuration(transcriptionResult.audioDuration)
           : '0m',
         status: 'transcribing',
         progress: 40,
-        errorMessage: transcriptionResult.error,
         lastProcessedAt: new Date().toISOString(),
-      })
+      }
 
       // 阶段 10B-5-R：检查 transcript 是否有效
-      // 如果 transcript 为空，不进入总结流程，标记为失败状态
       const hasValidTranscript = transcriptionResult.transcript &&
                                  transcriptionResult.transcript.trim().length > 0;
 
       if (!hasValidTranscript) {
-        // 转录失败，不调用总结服务
         console.warn('[App.tsx] 转录结果为空，中断总结流程');
-
         updateMeeting(newMeeting.id, {
+          ...meetingUpdateData,
           status: 'failed',
-          progress: 40,
-          errorMessage: transcriptionResult.error ||
-                       '转录失败：未获取到文字稿，请重试或手动粘贴会议文字稿',
+          errorMessage: transcriptionResult.error || '转录失败：未获取到文字稿',
           summary: '',
           summaryProvider: undefined,
           summaryIsFallback: undefined,
         });
-
         setProcessingStage('failed');
         return;
       }
 
-      // 步骤 1.5: 调用 LLM 增强服务（如果有 transcriptTurns）
+      // 步骤 1.5: 调用 LLM 增强服务
       let enhancedTranscriptTurns = null
       if (transcriptionResult.transcriptTurns && transcriptionResult.transcriptTurns.length > 0) {
         try {
@@ -283,37 +274,29 @@ function App() {
           if (enhancementResult.success && enhancementResult.enhancedTranscriptTurns) {
             enhancedTranscriptTurns = enhancementResult.enhancedTranscriptTurns
             console.log('[App.tsx] LLM 增强成功，turns 数量:', enhancedTranscriptTurns.length)
-
-            updateMeeting(newMeeting.id, {
-              enhancedTranscriptTurns: enhancedTranscriptTurns,
-              enhancementProvider: 'deepseek',
-              enhancementModel: 'deepseek-chat',
-              isEnhanced: true,
-              enhancementTime: new Date().toISOString(),
-            })
+            // 暂存到 updateData，稍后统一更新
+            meetingUpdateData.enhancedTranscriptTurns = enhancedTranscriptTurns
+            meetingUpdateData.enhancementProvider = 'deepseek'
+            meetingUpdateData.enhancementModel = 'deepseek-chat'
+            meetingUpdateData.isEnhanced = true
+            meetingUpdateData.enhancementTime = new Date().toISOString()
           } else {
             console.warn('[App.tsx] LLM 增强失败:', enhancementResult.error)
           }
         } catch (error) {
           console.error('[App.tsx] LLM 增强调用失败:', error)
-          // LLM 增强失败不影响整体流程，继续使用原文字稿
         }
       }
 
-      // 步骤 2: 调用总结服务（仅在 transcript 有效时）
+      // 步骤 2: 调用总结服务
       let summaryResult: SummaryResult
       try {
-        // 阶段 10B-5-Q4：总结阶段进度 92-100
-        setProcessingStage('summarizing');
-        setProcessingProgress(92);
-
-        // 使用增强文字稿（如果存在）或原文字稿生成总结
-        const transcriptForSummary = transcriptionResult.transcript || ''
-        console.log('[App.tsx] 生成总结，使用增强文字稿:', !!enhancedTranscriptTurns)
+        setProcessingStage('summarizing')
+        setProcessingProgress(92)
 
         summaryResult = await generateMeetingSummary({
           meetingId: newMeeting.id,
-          transcript: transcriptForSummary,
+          transcript: transcriptionResult.transcript || '',
           templateSnapshot: selectedTemplate ? {
             id: selectedTemplate.id,
             name: selectedTemplate.name,
@@ -322,10 +305,9 @@ function App() {
           } : undefined,
         })
 
-        // 阶段 10B-5-Q4：总结完成
-        setProcessingProgress(100);
+        setProcessingProgress(100)
       } catch (error) {
-        console.error('[App.tsx] 总结服务调用失败:', error);
+        console.error('[App.tsx] 总结服务调用失败:', error)
         summaryResult = {
           summary: '',
           provider: 'backend',
@@ -334,20 +316,24 @@ function App() {
         }
       }
 
-      // 更新总结结果
-      console.log('[App.tsx] 写入总结结果到 Meeting:', {
+      // 一次性更新所有数据（转录 + 增强 + 总结）
+      console.log('[App.tsx] 写入完整会议数据:', {
+        hasTranscript: !!meetingUpdateData.transcript,
+        hasTranscriptTurns: !!meetingUpdateData.transcriptTurns,
+        hasEnhanced: !!meetingUpdateData.enhancedTranscriptTurns,
         summaryProvider: summaryResult.provider,
-        summaryIsFallback: summaryResult.isFallback,
-        summaryLength: summaryResult.summary.length,
-      });
+        summaryLength: summaryResult.summary?.length || 0,
+      })
+
       updateMeeting(newMeeting.id, {
+        ...meetingUpdateData,
         summary: summaryResult.summary,
         summaryProvider: summaryResult.provider,
         summaryIsFallback: summaryResult.isFallback,
+        templateId: selectedTemplate?.id,
         status: summaryResult.error ? 'failed' : 'completed',
         progress: summaryResult.error ? 0 : 100,
         errorMessage: summaryResult.error,
-        lastProcessedAt: new Date().toISOString(),
       })
 
       setProcessingStage(summaryResult.error ? 'failed' : 'completed')
