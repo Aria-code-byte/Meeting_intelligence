@@ -169,6 +169,32 @@ export async function getMeetingStatus(meetingId: string): Promise<ApiResponse<{
 }
 
 /**
+ * Get complete meeting data including enhanced transcript
+ */
+export async function getCompleteMeetingData(meetingId: string): Promise<ApiResponse<{
+  transcript: string;
+  transcript_turns: Array<{speaker: string; start: number; end: number; text: string}>;
+  enhanced_transcript_turns?: Array<{speaker: string; start: number; end: number; text: string}>;
+  enhancement_provider?: string;
+  enhancement_model?: string;
+  enhancement_time?: string;
+  is_enhanced: boolean;
+}>> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/meetings/${meetingId}/transcript`);
+
+    if (!response.ok) {
+      return { error: 'Failed to fetch meeting data' };
+    }
+
+    const data = await response.json();
+    return { data };
+  } catch (error) {
+    return { error: `Failed to fetch meeting data: ${error}` };
+  }
+}
+
+/**
  * Start transcription for a meeting
  */
 export async function startTranscription(meetingId: string): Promise<ApiResponse<{ message: string }>> {

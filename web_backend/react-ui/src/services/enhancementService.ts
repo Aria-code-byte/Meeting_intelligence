@@ -26,6 +26,9 @@ export interface EnhancementResponse {
   };
 }
 
+// 类型别名，用于App.tsx
+export type EnhancementResult = EnhancementResponse;
+
 /**
  * 优化会议转录
  */

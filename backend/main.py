@@ -919,7 +919,13 @@ async def get_transcript(meeting_id: str):
     return {
         "success": True,
         "transcript": transcript,
+        "transcript_turns": MEETINGS[meeting_id].get("transcript_turns", []),
+        "enhanced_transcript_turns": MEETINGS[meeting_id].get("enhanced_transcript_turns", []),
         "segments": MEETINGS[meeting_id].get("segments", []),
+        "enhancement_provider": MEETINGS[meeting_id].get("enhancement_provider"),
+        "enhancement_model": MEETINGS[meeting_id].get("enhancement_model"),
+        "enhancement_time": MEETINGS[meeting_id].get("enhancement_time"),
+        "is_enhanced": MEETINGS[meeting_id].get("is_enhanced", False),
         "message": "获取成功"
     }
 
